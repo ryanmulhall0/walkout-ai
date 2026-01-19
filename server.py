@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify, render_template
-import app  # imports your app.py without starting CLI
+import app as walkout  # imports your app.py without starting CLI
 
 flask_app = Flask(__name__)
 
@@ -14,7 +14,7 @@ def ask():
     if not question:
         return jsonify({"answer": "Type a question."})
 
-    answer = app.handle_query(question)
+    answer = walkout.handle_query(question)
     if answer is None:
         answer = ""
     if answer == "__QUIT__":
