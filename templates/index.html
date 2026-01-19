@@ -1,0 +1,362 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Walkout AI</title>
+  <style>
+    :root{
+      --bg:#0b0f19;
+      --panel:#121a2b;
+      --panel2:#0f1626;
+      --text:#e8eefc;
+      --muted:#a9b6d3;
+      --muted2:#7f93b9;
+      --border:rgba(255,255,255,0.08);
+      --blue:#2b6cff;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:-apple-system,BlinkMacSystemFont,Arial,sans-serif;
+      background:var(--bg);
+      color:var(--text);
+    }
+    .app{
+      display:grid;
+      grid-template-columns: 280px 1fr;
+      min-height:100vh;
+    }
+    .sidebar{
+      border-right:1px solid var(--border);
+      background:linear-gradient(180deg, rgba(88,144,255,0.14), transparent 60%), var(--panel2);
+      padding:16px;
+    }
+    .brand{
+      font-weight:800;
+      letter-spacing:0.2px;
+      font-size:18px;
+      margin-bottom:6px;
+    }
+    .tagline{
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.35;
+      margin-bottom:14px;
+    }
+    .box{
+      background:rgba(0,0,0,0.18);
+      border:1px solid var(--border);
+      border-radius:14px;
+      padding:12px;
+      margin-bottom:12px;
+    }
+    .box h4{
+      margin:0 0 8px 0;
+      font-size:13px;
+      color:var(--muted);
+      font-weight:700;
+      letter-spacing:0.2px;
+      text-transform:uppercase;
+    }
+    .kv{display:flex; justify-content:space-between; gap:10px; font-size:13px; margin:6px 0; color:var(--text);}
+    .kv span{color:var(--muted2)}
+    .btn{
+      width:100%;
+      padding:11px 12px;
+      border-radius:12px;
+      border:1px solid var(--border);
+      background:#111a2d;
+      color:var(--text);
+      cursor:pointer;
+      font-weight:700;
+    }
+    .btn:hover{background:#182544}
+    .btn.primary{
+      background:var(--blue);
+      border-color:rgba(255,255,255,0.12);
+      color:#fff;
+    }
+    .btn.primary:hover{filter:brightness(1.05)}
+    .mini{
+      font-size:12px;
+      color:var(--muted2);
+      margin-top:8px;
+      line-height:1.35;
+    }
+    .pillrow{margin-top:10px}
+    .pill{
+      display:inline-block;
+      font-size:12px;
+      color:var(--muted);
+      border:1px solid var(--border);
+      border-radius:999px;
+      padding:4px 8px;
+      margin:6px 6px 0 0;
+      background:rgba(0,0,0,0.12);
+      cursor:pointer;
+      user-select:none;
+    }
+    .main{
+      padding:18px 16px;
+    }
+    .topbar{
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-end;
+      gap:12px;
+      margin-bottom:12px;
+      max-width:980px;
+      margin-left:auto;
+      margin-right:auto;
+    }
+    .title{
+      font-size:18px;
+      font-weight:800;
+    }
+    .subtitle{
+      font-size:12px;
+      color:var(--muted);
+      margin-top:3px;
+    }
+    .status{
+      font-size:12px;
+      color:var(--muted2);
+      padding:6px 10px;
+      border:1px solid var(--border);
+      border-radius:999px;
+      background:rgba(0,0,0,0.12);
+    }
+    .card{
+      max-width:980px;
+      margin:0 auto;
+      background:var(--panel);
+      border:1px solid var(--border);
+      border-radius:16px;
+      overflow:hidden;
+      box-shadow:0 10px 30px rgba(0,0,0,0.35);
+    }
+    #chat{
+      height: 600px;
+      overflow-y:auto;
+      padding:14px;
+      background: radial-gradient(1200px 600px at 30% -10%, rgba(88,144,255,0.15), transparent 60%);
+    }
+    .row{display:flex; margin:10px 0;}
+    .row.user{justify-content:flex-end;}
+    .bubble{
+      max-width:80%;
+      padding:10px 12px;
+      border-radius:14px;
+      white-space:pre-wrap;
+      line-height:1.35;
+      font-size:14px;
+    }
+    .user .bubble{
+      background:var(--blue);
+      color:#fff;
+      border-bottom-right-radius:6px;
+    }
+    .bot .bubble{
+      background:var(--panel2);
+      border:1px solid var(--border);
+      border-bottom-left-radius:6px;
+    }
+    .composer{
+      display:flex;
+      gap:10px;
+      padding:12px;
+      border-top:1px solid var(--border);
+      background:var(--panel2);
+    }
+    #q{
+      flex:1;
+      padding:12px 12px;
+      border-radius:12px;
+      border:1px solid rgba(255,255,255,0.10);
+      background:#0b1020;
+      color:var(--text);
+      outline:none;
+    }
+    #q::placeholder{color:#6f84ad;}
+    .send{
+      padding:12px 14px;
+      border-radius:12px;
+      border:1px solid rgba(255,255,255,0.10);
+      background:#111a2d;
+      color:var(--text);
+      cursor:pointer;
+      font-weight:700;
+      min-width:92px;
+    }
+    .send:hover{background:#182544}
+    .modalWrap{
+      position:fixed;
+      inset:0;
+      background:rgba(0,0,0,0.6);
+      display:none;
+      align-items:center;
+      justify-content:center;
+      padding:16px;
+    }
+    .modal{
+      width:min(520px, 100%);
+      background:var(--panel);
+      border:1px solid var(--border);
+      border-radius:16px;
+      padding:14px;
+      box-shadow:0 20px 60px rgba(0,0,0,0.6);
+    }
+    .modal h3{margin:0 0 6px 0}
+    .modal p{margin:0 0 12px 0; color:var(--muted); font-size:13px; line-height:1.4}
+    .modalActions{display:flex; gap:10px; justify-content:flex-end}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">Walkout AI</div>
+      <div class="tagline">UFC stats, predictions, props, last fight & last N fights — in plain English.</div>
+
+      <div class="box">
+        <h4>Account</h4>
+        <div class="kv"><span>Plan</span><div id="plan">Free</div></div>
+        <div class="kv"><span>Weekly usage</span><div id="usage">—</div></div>
+        <button class="btn primary" id="upgradeBtn">Upgrade ($10/mo)</button>
+        <button class="btn" id="manageBtn" style="display:none;margin-top:8px;">Manage subscription</button>
+        <div class="mini" id="acctNote">Free users get 5 questions per week. Upgrade for unlimited.</div>
+      </div>
+
+      <div class="box">
+        <h4>Quick prompts</h4>
+        <div class="pillrow">
+          <span class="pill">What is Sean O Malley’s record?</span>
+          <span class="pill">Sean O Malley last fight stats</span>
+          <span class="pill">Sean O Malley last 3 fights takedowns</span>
+          <span class="pill">Over/Under 62.5 sig strikes for Sean O Malley</span>
+          <span class="pill">Predict O Malley vs Vera</span>
+        </div>
+        <div class="mini">Tip: Press Enter to send.</div>
+      </div>
+
+      <div class="mini">
+        Beta build on your machine. Next step is deploying to a public URL.
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="topbar">
+        <div>
+          <div class="title">Chat</div>
+          <div class="subtitle">Ask anything UFC stats-related. Walkout AI replies instantly.</div>
+        </div>
+        <div class="status" id="statusPill">Connected</div>
+      </div>
+
+      <div class="card">
+        <div id="chat"></div>
+        <div class="composer">
+          <input id="q" placeholder="Ask a question (e.g., 'Predict Sean O’Malley vs Vera')" />
+          <button class="send" id="send">Send</button>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Upgrade modal (we'll wire it to Stripe later) -->
+  <div class="modalWrap" id="modalWrap">
+    <div class="modal">
+      <h3>Upgrade to Premium</h3>
+      <p>Premium is $10/month and includes unlimited questions, saved chat history, and account controls.</p>
+      <div class="modalActions">
+        <button class="btn" id="closeModal">Not now</button>
+        <button class="btn primary" id="goPremium">Continue</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const chat = document.getElementById("chat");
+    const input = document.getElementById("q");
+    const btn = document.getElementById("send");
+    const statusPill = document.getElementById("statusPill");
+
+    const planEl = document.getElementById("plan");
+    const usageEl = document.getElementById("usage");
+    const upgradeBtn = document.getElementById("upgradeBtn");
+    const manageBtn = document.getElementById("manageBtn");
+    const modalWrap = document.getElementById("modalWrap");
+    const closeModal = document.getElementById("closeModal");
+    const goPremium = document.getElementById("goPremium");
+
+    function addMsg(text, who) {
+      const row = document.createElement("div");
+      row.className = "row " + who;
+
+      const bub = document.createElement("div");
+      bub.className = "bubble";
+      bub.textContent = text;
+
+      row.appendChild(bub);
+      chat.appendChild(row);
+
+      chat.scrollTop = chat.scrollHeight;
+      return bub;
+    }
+
+    async function send() {
+      const q = input.value.trim();
+      if (!q) return;
+      input.value = "";
+      addMsg(q, "user");
+
+      const thinking = addMsg("Thinking…", "bot");
+
+      try {
+        statusPill.textContent = "Thinking…";
+        const res = await fetch("/ask", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({question: q})
+        });
+        const data = await res.json();
+        thinking.textContent = data.answer || "";
+        statusPill.textContent = "Connected";
+      } catch (e) {
+        thinking.textContent = "Error: couldn’t reach the server.";
+        statusPill.textContent = "Disconnected";
+      }
+
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    btn.onclick = send;
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") send();
+    });
+
+    // Quick prompt pills → send text
+    document.querySelectorAll(".pill").forEach(p => {
+      p.addEventListener("click", () => {
+        input.value = p.textContent;
+        input.focus();
+      });
+    });
+
+    // Upgrade modal (Stripe wiring later)
+    upgradeBtn.addEventListener("click", () => { modalWrap.style.display = "flex"; });
+    closeModal.addEventListener("click", () => { modalWrap.style.display = "none"; });
+    modalWrap.addEventListener("click", (e) => { if (e.target === modalWrap) modalWrap.style.display = "none"; });
+    goPremium.addEventListener("click", () => {
+      modalWrap.style.display = "none";
+      addMsg("Premium checkout isn’t wired yet. We’ll connect Stripe in Step 3.", "bot");
+    });
+
+    // Placeholder account display for now (we’ll connect real usage counters in Step 3)
+    planEl.textContent = "Free";
+    usageEl.textContent = "0 / 5 used";
+
+    addMsg("Ask me UFC stats, predictions, props, last fight, last N fights, etc.", "bot");
+  </script>
+</body>
+</html>
