@@ -2,7 +2,7 @@ from flask import Flask, request, jsonify, render_template
 import app as walkout  # imports your app.py without starting CLI
 
 flask_app = Flask(__name__)
-
+app = flask_app
 @flask_app.get("/")
 def home():
     return render_template("index.html")
