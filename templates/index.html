@@ -31,6 +31,7 @@
       border-right:1px solid var(--border);
       background:linear-gradient(180deg, rgba(88,144,255,0.14), transparent 60%), var(--panel2);
       padding:16px;
+      <button id="upgradeBtn" type="button">Upgrade ($10/mo)</button>
     }
     .brand{
       font-weight:800;
@@ -358,5 +359,22 @@
 
     addMsg("Ask me UFC stats, predictions, props, last fight, last N fights, etc.", "bot");
   </script>
+  <script>
+  async function startCheckout() {
+    try {
+      const res = await fetch("/create-checkout-session", { method: "POST" });
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+        return;
+      }
+      alert(data.error || "Could not start checkout.");
+    } catch (e) {
+      alert("Could not start checkout.");
+    }
+  }
+
+  const btn = document.getElementById("upgradeBtn");
+  if (btn) btn.addEventListener("click", startCheckout);
 </body>
 </html>
