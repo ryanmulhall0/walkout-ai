@@ -172,6 +172,12 @@ def google_callback():
     session["user"] = {"email": email, "premium": premium_active}
     return redirect("/")
 
+@app.route("/whoami")
+def whoami():
+    u = session.get("user")
+    if not u:
+        return jsonify({"logged_in": False}), 200
+    return jsonify({"logged_in": True, "email": u.get("email"), "premium": bool(u.get("premium"))}), 200
 
 if __name__ == "__main__":
     flask_app.run(host="127.0.0.1", port=5000, debug=True)
