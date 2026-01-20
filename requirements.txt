@@ -2,3 +2,4 @@ flask
 pandas
 gunicorn
 stripe
+psycopg2-binary
