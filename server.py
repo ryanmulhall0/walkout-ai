@@ -179,5 +179,25 @@ def whoami():
         return jsonify({"logged_in": False}), 200
     return jsonify({"logged_in": True, "email": u.get("email"), "premium": bool(u.get("premium"))}), 200
 
+@app.get("/premium/status")
+def premium_status():
+    u = session.get("user")
+    if not u or not u.get("email"):
+        return jsonify({"logged_in": False, "premium": False}), 200
+
+    email = u["email"].strip().lower()
+    db_url = os.environ.get("DATABASE_URL")
+    conn = psycopg2.connect(db_url)
+    cur = conn.cursor()
+    cur.execute("SELECT premium_active FROM users WHERE email=%s;", (email,))
+    row = cur.fetchone()
+    cur.close()
+    conn.close()
+
+    premium = bool(row[0]) if row else False
+    session["user"]["premium"] = premium  # keep session in sync
+    return jsonify({"logged_in": True, "premium": premium}), 200
+
+
 if __name__ == "__main__":
     flask_app.run(host="127.0.0.1", port=5000, debug=True)
