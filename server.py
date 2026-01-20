@@ -3,7 +3,7 @@ import app as walkout  # imports your app.py without starting CLI
 import stripe
 import os
 flask_app = Flask(__name__)
-
+app = flask_app
 # ---------------------------
 # Stripe config (test mode)
 # ---------------------------
