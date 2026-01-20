@@ -3,7 +3,9 @@ import app as walkout  # imports your app.py without starting CLI
 import stripe
 import os
 import psycopg2
-
+import requests
+from urllib.parse import urlencode
+from datetime import date
 flask_app = Flask(__name__)
 app = flask_app
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-secret")
