@@ -285,6 +285,23 @@
     const planEl = document.getElementById("plan");
     const usageEl = document.getElementById("usage");
     const upgradeBtn = document.getElementById("upgradeBtn");
+    async function refreshPremiumUI() {
+  try {
+    const r = await fetch("/premium/status");
+    const data = await r.json();
+    if (data && data.premium) {
+      upgradeBtn.style.display = "none";
+    } else {
+      upgradeBtn.style.display = "inline-block";
+    }
+  } catch (e) {
+    // If server can't answer, keep upgrade visible
+    upgradeBtn.style.display = "inline-block";
+  }
+}
+
+refreshPremiumUI();
+
     const manageBtn = document.getElementById("manageBtn");
     const modalWrap = document.getElementById("modalWrap");
     const closeModal = document.getElementById("closeModal");
