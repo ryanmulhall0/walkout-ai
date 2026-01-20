@@ -3,3 +3,4 @@ pandas
 gunicorn
 stripe
 psycopg2-binary
+requests
