@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, render_template, redirect, session
 import app as walkout  # imports your app.py without starting CLI
 import stripe
 import os
@@ -6,6 +6,7 @@ import psycopg2
 
 flask_app = Flask(__name__)
 app = flask_app
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-secret")
 def init_db():
     db_url = os.environ.get("DATABASE_URL")
     if not db_url:
@@ -90,6 +91,26 @@ def create_checkout_session():
     if answer == "__QUIT__":
         answer = "Quit command disabled on web."
     return jsonify({"answer": str(answer)})
+@app.route("/login/google")
+def login_google():
+    google_client_id = os.environ.get("GOOGLE_CLIENT_ID")
+    redirect_uri = "https://walkout-ai.onrender.com/auth/google/callback"
+
+    return redirect(
+        "https://accounts.google.com/o/oauth2/v2/auth"
+        f"?client_id={google_client_id}"
+        "&response_type=code"
+        "&scope=openid%20email"
+        f"&redirect_uri={redirect_uri}"
+    )
+@app.route("/auth/google/callback")
+def google_callback():
+    code = request.args.get("code")
+    if not code:
+        return "Google login failed", 400
+
+    session["user"] = {"email": "google-user"}
+    return redirect("/")
 
 if __name__ == "__main__":
     flask_app.run(host="127.0.0.1", port=5000, debug=True)
