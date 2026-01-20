@@ -15,10 +15,27 @@ def home():
 
 @flask_app.post("/ask")
 def ask():
-    data = request.get_json(force=True) or {}
-    question = (data.get("question") or "").strip()
-    if not question:
-        return jsonify({"answer": "Type a question."})
+    try:
+        data = request.get_json(force=True) or {}
+        question = (data.get("question") or "").strip()
+
+        if not question:
+            return jsonify({"answer": "Type a question."})
+
+        # Call the existing CLI logic from app.py
+        answer = app.handle_query(question)
+
+        if answer is None:
+            return jsonify({"answer": ""})
+
+        if answer == "__QUIT__":
+            return jsonify({"answer": "Quit is disabled in web mode."})
+
+        return jsonify({"answer": str(answer)})
+
+    except Exception as e:
+        return jsonify({"answer": f"Server error: {str(e)}"})
+
 @flask_app.post("/create-checkout-session")
 def create_checkout_session():
     if not stripe.api_key:
