@@ -19,6 +19,25 @@ def ask():
     question = (data.get("question") or "").strip()
     if not question:
         return jsonify({"answer": "Type a question."})
+@flask_app.post("/create-checkout-session")
+def create_checkout_session():
+    if not stripe.api_key:
+        return jsonify({"error": "Stripe secret key is not set on the server."}), 500
+    if not STRIPE_PRICE_ID:
+        return jsonify({"error": "STRIPE_PRICE_ID is missing. Add it in Render Environment."}), 500
+
+    base = request.host_url.rstrip("/")
+
+    try:
+        session = stripe.checkout.Session.create(
+            mode="subscription",
+            line_items=[{"price": STRIPE_PRICE_ID, "quantity": 1}],
+            success_url=f"{base}/?paid=1",
+            cancel_url=f"{base}/?canceled=1",
+        )
+        return jsonify({"url": session.url})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
     answer = walkout.handle_query(question)
     if answer is None:
