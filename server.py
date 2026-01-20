@@ -3,7 +3,7 @@ import app as walkout  # imports your app.py without starting CLI
 import stripe
 import os
 flask_app = Flask(__name__)
-app = flask_app
+
 # ---------------------------
 # Stripe config (test mode)
 # ---------------------------
@@ -23,7 +23,7 @@ def ask():
             return jsonify({"answer": "Type a question."})
 
         # Call the existing CLI logic from app.py
-        answer = app.handle_query(question)
+        answer = walkout.handle_query(question)
 
         if answer is None:
             return jsonify({"answer": ""})
