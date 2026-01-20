@@ -2,8 +2,36 @@ from flask import Flask, request, jsonify, render_template
 import app as walkout  # imports your app.py without starting CLI
 import stripe
 import os
+import psycopg2
+
 flask_app = Flask(__name__)
 app = flask_app
+def init_db():
+    db_url = os.environ.get("DATABASE_URL")
+    if not db_url:
+        return
+
+    conn = psycopg2.connect(db_url)
+    cur = conn.cursor()
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id SERIAL PRIMARY KEY,
+            email TEXT UNIQUE,
+            google_id TEXT UNIQUE,
+            stripe_customer_id TEXT,
+            stripe_subscription_id TEXT,
+            premium_active BOOLEAN DEFAULT FALSE,
+            weekly_count INTEGER DEFAULT 0,
+            week_start DATE
+        );
+    """)
+    conn.commit()
+    cur.close()
+    conn.close()
+
+init_db()
+
+
 # ---------------------------
 # Stripe config (test mode)
 # ---------------------------
