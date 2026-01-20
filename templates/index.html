@@ -348,10 +348,24 @@
     upgradeBtn.addEventListener("click", () => { modalWrap.style.display = "flex"; });
     closeModal.addEventListener("click", () => { modalWrap.style.display = "none"; });
     modalWrap.addEventListener("click", (e) => { if (e.target === modalWrap) modalWrap.style.display = "none"; });
-    goPremium.addEventListener("click", () => {
-      modalWrap.style.display = "none";
-      addMsg("Premium checkout isn’t wired yet. We’ll connect Stripe in Step 3.", "bot");
-    });
+    goPremium.addEventListener("click", async () => {
+  modalWrap.style.display = "none";
+
+  try {
+    const res = await fetch("/create-checkout-session", { method: "POST" });
+    const data = await res.json();
+
+    if (data.url) {
+      window.location.href = data.url;
+      return;
+    }
+
+    addMsg(data.error || "Could not start checkout.", "bot");
+  } catch (e) {
+    addMsg("Could not start checkout.", "bot");
+  }
+});
+
 
     // Placeholder account display for now (we’ll connect real usage counters in Step 3)
     planEl.textContent = "Free";
