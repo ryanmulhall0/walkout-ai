@@ -111,8 +111,67 @@ def google_callback():
     if not code:
         return "Google login failed", 400
 
-    session["user"] = {"email": "google-user"}
+    client_id = os.environ.get("GOOGLE_CLIENT_ID")
+    client_secret = os.environ.get("GOOGLE_CLIENT_SECRET")
+    redirect_uri = "https://walkout-ai.onrender.com/auth/google/callback"
+
+    token_resp = requests.post(
+        "https://oauth2.googleapis.com/token",
+        data={
+            "code": code,
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "redirect_uri": redirect_uri,
+            "grant_type": "authorization_code",
+        },
+        timeout=10,
+    )
+    if token_resp.status_code != 200:
+        return "Google token exchange failed", 400
+
+    token_data = token_resp.json()
+    access_token = token_data.get("access_token")
+    if not access_token:
+        return "Google token missing", 400
+
+    userinfo_resp = requests.get(
+        "https://www.googleapis.com/oauth2/v2/userinfo",
+        headers={"Authorization": f"Bearer {access_token}"},
+        timeout=10,
+    )
+    if userinfo_resp.status_code != 200:
+        return "Google userinfo failed", 400
+
+    userinfo = userinfo_resp.json()
+    email = (userinfo.get("email") or "").strip().lower()
+    google_id = (userinfo.get("id") or "").strip()
+
+    if not email:
+        return "Google did not return an email", 400
+
+    db_url = os.environ.get("DATABASE_URL")
+    conn = psycopg2.connect(db_url)
+    cur = conn.cursor()
+
+    cur.execute("SELECT premium_active FROM users WHERE email=%s;", (email,))
+    row = cur.fetchone()
+
+    if row is None:
+        cur.execute(
+            "INSERT INTO users (email, google_id, premium_active, weekly_count, week_start) VALUES (%s, %s, FALSE, 0, %s);",
+            (email, google_id or None, date.today()),
+        )
+        conn.commit()
+        premium_active = False
+    else:
+        premium_active = bool(row[0])
+
+    cur.close()
+    conn.close()
+
+    session["user"] = {"email": email, "premium": premium_active}
     return redirect("/")
+
 
 if __name__ == "__main__":
     flask_app.run(host="127.0.0.1", port=5000, debug=True)
