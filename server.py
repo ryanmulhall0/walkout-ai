@@ -1,8 +1,14 @@
 from flask import Flask, request, jsonify, render_template
 import app as walkout  # imports your app.py without starting CLI
-
+import stripe
+import os
 flask_app = Flask(__name__)
 app = flask_app
+# ---------------------------
+# Stripe config (test mode)
+# ---------------------------
+stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "")
+STRIPE_PRICE_ID = os.getenv("STRIPE_PRICE_ID", "")
 @flask_app.get("/")
 def home():
     return render_template("index.html")
