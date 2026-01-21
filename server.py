@@ -10,48 +10,37 @@ flask_app = Flask(__name__)
 app = flask_app
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-secret")
 def init_db():
-def init_db():
     db_url = os.environ.get("DATABASE_URL")
     if not db_url:
         raise RuntimeError("DATABASE_URL is not set")
 
     conn = psycopg2.connect(db_url)
-    try:
-        cur = conn.cursor()
+    cur = conn.cursor()
 
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS users (
-                id SERIAL PRIMARY KEY,
-                email TEXT UNIQUE,
-                google_id TEXT UNIQUE,
-                stripe_customer_id TEXT,
-                stripe_subscription_id TEXT,
-                premium_active BOOLEAN DEFAULT FALSE,
-                weekly_count INTEGER DEFAULT 0,
-                week_start DATE
-            );
-        """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id SERIAL PRIMARY KEY,
+            email TEXT UNIQUE,
+            google_id TEXT UNIQUE,
+            stripe_customer_id TEXT,
+            stripe_subscription_id TEXT,
+            premium_active BOOLEAN DEFAULT FALSE,
+            weekly_count INTEGER DEFAULT 0,
+            week_start DATE
+        );
+    """)
 
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS questions (
-                id SERIAL PRIMARY KEY,
-                email TEXT NOT NULL,
-                asked_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-            );
-        """)
-
-        conn.commit()
-        cur.close()
-    finally:
-        conn.close()
-
-
-
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS questions (
+            id SERIAL PRIMARY KEY,
+            email TEXT NOT NULL,
+            asked_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+    """)
 
     conn.commit()
     cur.close()
     conn.close()
-
 init_db()
 
 
