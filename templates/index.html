@@ -289,18 +289,30 @@
   try {
     const r = await fetch("/premium/status");
     const data = await r.json();
+
+    const planEl = document.getElementById("plan");
+    const noteEl = document.getElementById("acctNote");
+    const manageBtn = document.getElementById("manageBtn");
+
     if (data && data.premium) {
       upgradeBtn.style.display = "none";
+      manageBtn.style.display = "inline-block";
+      planEl.textContent = "Premium";
+      noteEl.textContent = "You have unlimited questions. Thank you for supporting Walkout AI.";
     } else {
       upgradeBtn.style.display = "inline-block";
+      manageBtn.style.display = "none";
+      planEl.textContent = "Free";
+      noteEl.textContent = "Free users get 5 questions per week. Upgrade for unlimited.";
     }
   } catch (e) {
-    // If server can't answer, keep upgrade visible
+    // fallback
     upgradeBtn.style.display = "inline-block";
   }
 }
 
 refreshPremiumUI();
+
 
     const manageBtn = document.getElementById("manageBtn");
     const modalWrap = document.getElementById("modalWrap");
