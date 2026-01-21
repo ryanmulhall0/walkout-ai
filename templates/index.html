@@ -293,6 +293,20 @@
     const planEl = document.getElementById("plan");
     const noteEl = document.getElementById("acctNote");
     const manageBtn = document.getElementById("manageBtn");
+    manageBtn.addEventListener("click", async () => {
+  try {
+    const r = await fetch("/stripe/portal", { method: "POST" });
+    const data = await r.json();
+    if (data.url) {
+      window.location.href = data.url;
+      return;
+    }
+    addMsg(data.error || "Could not open subscription portal.", "bot");
+  } catch (e) {
+    addMsg("Could not open subscription portal.", "bot");
+  }
+});
+
 
     if (data && data.premium) {
       upgradeBtn.style.display = "none";
