@@ -108,6 +108,46 @@ def create_checkout_session():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.post("/stripe/portal")
+def stripe_portal():
+    # Must be logged in
+    u = session.get("user")
+    if not u or not u.get("email"):
+        return jsonify({"error": "Not logged in"}), 401
+
+    email = u["email"].strip().lower()
+
+    # Must be premium to manage
+    db_url = os.environ.get("DATABASE_URL")
+    conn = psycopg2.connect(db_url)
+    cur = conn.cursor()
+    cur.execute("SELECT premium_active FROM users WHERE email=%s;", (email,))
+    row = cur.fetchone()
+    cur.close()
+    conn.close()
+
+    if not row or not row[0]:
+        return jsonify({"error": "Not premium"}), 403
+
+    if not stripe.api_key:
+        return jsonify({"error": "Stripe secret key is not set on the server."}), 500
+
+    base = request.host_url.rstrip("/")
+
+    try:
+        customers = stripe.Customer.list(email=email, limit=1)
+        if not customers.data:
+            return jsonify({"error": "No Stripe customer found for this email yet."}), 400
+
+        cust_id = customers.data[0].id
+
+        portal = stripe.billing_portal.Session.create(
+            customer=cust_id,
+            return_url=f"{base}/",
+        )
+        return jsonify({"url": portal.url})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
     answer = walkout.handle_query(question)
     if answer is None:
