@@ -223,3 +223,44 @@ def premium_status():
 
 if __name__ == "__main__":
     flask_app.run(host="127.0.0.1", port=5000, debug=True)
+@app.post("/stripe/webhook")
+def stripe_webhook():
+    payload = request.data
+    sig_header = request.headers.get("Stripe-Signature")
+    webhook_secret = os.environ.get("STRIPE_WEBHOOK_SECRET")
+
+    if not webhook_secret:
+        return "Webhook secret not set", 500
+
+    try:
+        event = stripe.Webhook.construct_event(
+            payload=payload,
+            sig_header=sig_header,
+            secret=webhook_secret,
+        )
+    except Exception as e:
+        return f"Webhook error: {str(e)}", 400
+
+    if event["type"] == "checkout.session.completed":
+        session_obj = event["data"]["object"]
+
+        # Try multiple places Stripe may store the email
+        email = None
+        if isinstance(session_obj.get("customer_details"), dict):
+            email = session_obj["customer_details"].get("email")
+        if not email:
+            email = session_obj.get("customer_email")
+        if not email:
+            email = session_obj.get("metadata", {}).get("email")
+
+        if email:
+            email = email.strip().lower()
+            db_url = os.environ.get("DATABASE_URL")
+            conn = psycopg2.connect(db_url)
+            cur = conn.cursor()
+            cur.execute("UPDATE users SET premium_active=TRUE WHERE email=%s;", (email,))
+            conn.commit()
+            cur.close()
+            conn.close()
+
+    return "ok", 200
