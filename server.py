@@ -28,6 +28,14 @@ def init_db():
             week_start DATE
         );
     """)
+   cur.execute("""
+    CREATE TABLE IF NOT EXISTS questions (
+        id SERIAL PRIMARY KEY,
+        email TEXT NOT NULL,
+        asked_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+""")
+
     conn.commit()
     cur.close()
     conn.close()
