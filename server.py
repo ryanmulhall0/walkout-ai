@@ -28,13 +28,34 @@ def init_db():
             week_start DATE
         );
     """)
-   cur.execute("""
-    CREATE TABLE IF NOT EXISTS questions (
-        id SERIAL PRIMARY KEY,
-        email TEXT NOT NULL,
-        asked_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-""")
+    conn = psycopg2.connect(db_url)
+    cur = conn.cursor()
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id SERIAL PRIMARY KEY,
+            email TEXT UNIQUE,
+            google_id TEXT UNIQUE,
+            stripe_customer_id TEXT,
+            stripe_subscription_id TEXT,
+            premium_active BOOLEAN DEFAULT FALSE,
+            weekly_count INTEGER DEFAULT 0,
+            week_start DATE
+        );
+    """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS questions (
+            id SERIAL PRIMARY KEY,
+            email TEXT NOT NULL,
+            asked_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+    """)
+
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+
 
     conn.commit()
     cur.close()
