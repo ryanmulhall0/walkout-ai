@@ -68,7 +68,27 @@ def ask():
         return jsonify({"answer": f"Server error: {str(e)}"})
 
 @flask_app.post("/create-checkout-session")
+@app.post("/stripe/create-checkout")
 def create_checkout_session():
+    # Must be logged in
+    u = session.get("user")
+    if not u or not u.get("email"):
+        return jsonify({"error": "Not logged in"}), 401
+
+    email = u["email"].strip().lower()
+
+    # Check DB for premium
+    db_url = os.environ.get("DATABASE_URL")
+    conn = psycopg2.connect(db_url)
+    cur = conn.cursor()
+    cur.execute("SELECT premium_active FROM users WHERE email=%s;", (email,))
+    row = cur.fetchone()
+    cur.close()
+    conn.close()
+
+    if row and row[0]:
+        return jsonify({"error": "Already premium"}), 400
+
     if not stripe.api_key:
         return jsonify({"error": "Stripe secret key is not set on the server."}), 500
     if not STRIPE_PRICE_ID:
@@ -77,15 +97,17 @@ def create_checkout_session():
     base = request.host_url.rstrip("/")
 
     try:
-        session = stripe.checkout.Session.create(
+        checkout = stripe.checkout.Session.create(
             mode="subscription",
+            customer_email=email,
             line_items=[{"price": STRIPE_PRICE_ID, "quantity": 1}],
             success_url=f"{base}/?paid=1",
             cancel_url=f"{base}/?canceled=1",
         )
-        return jsonify({"url": session.url})
+        return jsonify({"url": checkout.url})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
     answer = walkout.handle_query(question)
     if answer is None:
