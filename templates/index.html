@@ -364,8 +364,18 @@ refreshPremiumUI();
           body: JSON.stringify({question: q})
         });
         const data = await res.json();
-        thinking.textContent = data.answer || "";
-        statusPill.textContent = "Connected";
+        const answerText = (data && data.answer) ? data.answer : "";
+
+if (data && data.limit_reached) {
+  thinking.textContent = answerText || "Free limit reached. Please upgrade.";
+  statusPill.textContent = "Connected";
+  modalWrap.style.display = "flex";
+  return;
+}
+
+thinking.textContent = answerText;
+statusPill.textContent = "Connected";
+
       } catch (e) {
         thinking.textContent = "Error: couldn’t reach the server.";
         statusPill.textContent = "Disconnected";
