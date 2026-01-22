@@ -4,6 +4,7 @@ import stripe
 import os
 import psycopg2
 import requests
+import uuid
 from urllib.parse import urlencode
 from datetime import date
 flask_app = Flask(__name__)
@@ -71,7 +72,8 @@ def ask():
         if answer == "__QUIT__":
             return jsonify({"answer": "Quit is disabled in web mode."})
 
-        return jsonify({"answer": str(answer)})
+        return jsonify({"answer": answer, "used": used, "limit": 5})
+
 
     except Exception as e:
         return jsonify({"answer": f"Server error: {str(e)}"})
@@ -83,23 +85,38 @@ def create_checkout_session():
     u = session.get("user")
     if not u or not u.get("email"):
         return jsonify({"error": "Not logged in"}), 401
-    # ===== FREE LIMIT: 5 questions per rolling 7 days =====
-    email = (u.get("email") or "").strip().lower()
+    # ===== FREE LIMIT: 5 questions per rolling 7 days (anonymous OK) =====
+    # Identify the user (logged in => email, anonymous => anon:<uuid>)
+    email = ""
+    if u and u.get("email"):
+        email = (u.get("email") or "").strip().lower()
+        ident = email
+        logged_in = True
+    else:
+        anon_id = session.get("anon_id")
+        if not anon_id:
+            anon_id = uuid.uuid4().hex
+            session["anon_id"] = anon_id
+        ident = f"anon:{anon_id}"
+        logged_in = False
 
     db_url = os.environ.get("DATABASE_URL")
     conn = psycopg2.connect(db_url)
     cur = conn.cursor()
 
-    # Check premium
-    cur.execute("SELECT premium_active FROM users WHERE email=%s;", (email,))
-    row = cur.fetchone()
-    is_premium = bool(row and row[0])
+    # Premium only applies to logged-in users (anonymous is always free)
+    is_premium = False
+    if logged_in:
+        cur.execute("SELECT premium_active FROM users WHERE email=%s;", (ident,))
+        row = cur.fetchone()
+        is_premium = bool(row and row[0])
 
     if not is_premium:
+        # Count questions in last 7 days for this ident
         cur.execute("""
             SELECT COUNT(*) FROM questions
             WHERE email=%s AND asked_at >= NOW() - INTERVAL '7 days';
-        """, (email,))
+        """, (ident,))
         used = int(cur.fetchone()[0] or 0)
 
         if used >= 5:
@@ -109,15 +126,34 @@ def create_checkout_session():
                 "answer": "Free limit reached: 5 questions per week. Please upgrade to Premium for unlimited access.",
                 "limit_reached": True,
                 "used": used,
-                "limit": 5
+                "limit": 5,
+                "logged_in": logged_in,
+                "premium": False
             }), 429
 
-    # Log the question
-    cur.execute("INSERT INTO questions (email) VALUES (%s);", (email,))
-    conn.commit()
-    cur.close()
-    conn.close()
+        # Log this question (free)
+        cur.execute("INSERT INTO questions (email) VALUES (%s);", (ident,))
+        conn.commit()
+
+        # New count after insert
+        cur.execute("""
+            SELECT COUNT(*) FROM questions
+            WHERE email=%s AND asked_at >= NOW() - INTERVAL '7 days';
+        """, (ident,))
+        used = int(cur.fetchone()[0] or 0)
+
+        cur.close()
+        conn.close()
+        # Leave `used` available for the response
+    else:
+        # Premium: log optionally (doesn't matter), but still useful for analytics
+        cur.execute("INSERT INTO questions (email) VALUES (%s);", (ident,))
+        conn.commit()
+        cur.close()
+        conn.close()
+        used = None
     # ===== END FREE LIMIT =====
+
 
     email = u["email"].strip().lower()
 
