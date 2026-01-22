@@ -364,7 +364,13 @@ refreshPremiumUI();
           body: JSON.stringify({question: q})
         });
         const data = await res.json();
-        const answerText = (data && data.answer) ? data.answer : "";
+
+const answerText = (data && data.answer) ? data.answer : "";
+
+// Update weekly usage if provided
+if (typeof data.used === "number" && typeof data.limit === "number") {
+  usage.textContent = `${data.used}/${data.limit}`;
+}
 
 if (data && data.limit_reached) {
   thinking.textContent = answerText || "Free limit reached. Please upgrade.";
@@ -375,6 +381,7 @@ if (data && data.limit_reached) {
 
 thinking.textContent = answerText;
 statusPill.textContent = "Connected";
+
 
       } catch (e) {
         thinking.textContent = "Error: couldn’t reach the server.";
