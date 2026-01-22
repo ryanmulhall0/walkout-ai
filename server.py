@@ -56,6 +56,7 @@ def home():
 
 @flask_app.post("/ask")
 def ask():
+    used = None
     try:
         data = request.get_json(force=True) or {}
         question = (data.get("question") or "").strip()
