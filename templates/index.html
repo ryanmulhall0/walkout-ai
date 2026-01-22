@@ -299,6 +299,7 @@
     const planEl = document.getElementById("plan");
     const usageEl = document.getElementById("usage");
     const upgradeBtn = document.getElementById("upgradeBtn");
+    usageEl.textContent = "—";
     async function refreshPremiumUI() {
   try {
     const r = await fetch("/premium/status");
