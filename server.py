@@ -380,6 +380,27 @@ def google_callback():
 
     cur.close()
     conn.close()
+    # --- Merge anonymous usage into logged-in account (prevent free reset) ---
+    anon_id = session.get("anon_id")
+    if anon_id:
+        anon_ident = f"anon:{anon_id}"
+
+        db_url = os.environ.get("DATABASE_URL")
+        conn = psycopg2.connect(db_url)
+        cur = conn.cursor()
+
+        # Reassign anonymous questions to this email
+        cur.execute(
+            "UPDATE questions SET email=%s WHERE email=%s;",
+            (email, anon_ident),
+        )
+        conn.commit()
+
+        cur.close()
+        conn.close()
+
+        # Clear anon session so it can't be reused
+        session.pop("anon_id", None)
 
     session["user"] = {"email": email, "premium": premium_active}
     return redirect("/")
