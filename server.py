@@ -63,6 +63,66 @@ def ask():
 
         if not question:
             return jsonify({"answer": "Type a question."})
+        # ===== FREE LIMIT: 5 questions per rolling 7 days (anonymous OK) =====
+        u = session.get("user") or {}
+        email = (u.get("email") or "").strip().lower()
+        logged_in = bool(email)
+
+        # Identify user for tracking:
+        # - logged in => email
+        # - anonymous => anon:<uuid stored in session cookie>
+        if logged_in:
+            ident = email
+        else:
+            anon_id = session.get("anon_id")
+            if not anon_id:
+                anon_id = uuid.uuid4().hex
+                session["anon_id"] = anon_id
+            ident = f"anon:{anon_id}"
+
+        db_url = os.environ.get("DATABASE_URL")
+        conn = psycopg2.connect(db_url)
+        cur = conn.cursor()
+
+        # Premium applies only to logged-in users
+        is_premium = False
+        if logged_in:
+            cur.execute("SELECT premium_active FROM users WHERE email=%s;", (email,))
+            row = cur.fetchone()
+            is_premium = bool(row and row[0])
+
+        if not is_premium:
+            # Count questions in the last 7 days
+            cur.execute("""
+                SELECT COUNT(*) FROM questions
+                WHERE email=%s AND asked_at >= NOW() - INTERVAL '7 days';
+            """, (ident,))
+            used = int(cur.fetchone()[0] or 0)
+
+            if used >= 5:
+                cur.close()
+                conn.close()
+                return jsonify({
+                    "answer": "Free limit reached: 5 questions per week. Please upgrade to Premium for unlimited access.",
+                    "limit_reached": True,
+                    "used": used,
+                    "limit": 5
+                }), 429
+
+            # Log this question
+            cur.execute("INSERT INTO questions (email) VALUES (%s);", (ident,))
+            conn.commit()
+
+            # Update used after logging
+            cur.execute("""
+                SELECT COUNT(*) FROM questions
+                WHERE email=%s AND asked_at >= NOW() - INTERVAL '7 days';
+            """, (ident,))
+            used = int(cur.fetchone()[0] or 0)
+
+        cur.close()
+        conn.close()
+        # ===== END FREE LIMIT =====
 
         # Call the existing CLI logic from app.py
         answer = walkout.handle_query(question)
