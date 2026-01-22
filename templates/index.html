@@ -278,6 +278,19 @@
   </div>
 
   <script>
+// --- Persistent anonymous ID (fixes free-limit bypass) ---
+  const ANON_ID_KEY = "walkout_anon_id";
+
+  function getAnonId() {
+    let id = localStorage.getItem(ANON_ID_KEY);
+    if (!id) {
+      id = crypto.randomUUID();
+      localStorage.setItem(ANON_ID_KEY, id);
+    }
+    return id;
+  }
+
+  const ANON_ID = getAnonId();
     const chat = document.getElementById("chat");
     const input = document.getElementById("q");
     const btn = document.getElementById("send");
@@ -359,11 +372,15 @@ refreshPremiumUI();
 
       try {
         statusPill.textContent = "Thinking…";
-        const res = await fetch("/ask", {
-          method: "POST",
-          headers: {"Content-Type": "application/json"},
-          body: JSON.stringify({question: q})
-        });
+const res = await fetch("/ask", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    "X-ANON-ID": ANON_ID
+  },
+  body: JSON.stringify({ question: q })
+});
+
         const data = await res.json();
 
 const answerText = (data && data.answer) ? data.answer : "";
