@@ -367,9 +367,6 @@ def premium_status():
     session["user"]["premium"] = premium  # keep session in sync
     return jsonify({"logged_in": True, "premium": premium}), 200
 
-
-if __name__ == "__main__":
-    flask_app.run(host="127.0.0.1", port=5000, debug=True)
 @app.post("/stripe/webhook")
 def stripe_webhook():
     payload = request.data
@@ -411,3 +408,6 @@ def stripe_webhook():
             conn.close()
 
     return "ok", 200
+if __name__ == "__main__":
+    flask_app.run(host="127.0.0.1", port=5000, debug=False)
+
