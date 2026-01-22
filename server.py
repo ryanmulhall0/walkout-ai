@@ -9,6 +9,8 @@ from urllib.parse import urlencode
 from datetime import date
 flask_app = Flask(__name__)
 app = flask_app
+# IMPORTANT: stable secret key so anonymous sessions persist across refresh/redeploy
+flask_app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-change-me")
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-secret")
 def init_db():
     db_url = os.environ.get("DATABASE_URL")
