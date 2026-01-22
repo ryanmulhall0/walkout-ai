@@ -223,6 +223,7 @@
         <h4>Account</h4>
         <div class="kv"><span>Plan</span><div id="plan">Free</div></div>
         <div class="kv"><span>Weekly usage</span><div id="usage">—</div></div>
+        <button class="btn" id="loginBtn" style="margin-top:8px;">Sign in with Google</button>
         <button class="btn primary" id="upgradeBtn">Upgrade ($10/mo)</button>
         <button class="btn" id="manageBtn" style="display:none;margin-top:8px;">Manage subscription</button>
         <div class="mini" id="acctNote">Free users get 5 questions per week. Upgrade for unlimited.</div>
@@ -281,7 +282,7 @@
     const input = document.getElementById("q");
     const btn = document.getElementById("send");
     const statusPill = document.getElementById("statusPill");
-
+    const loginBtn = document.getElementById("loginBtn");
     const planEl = document.getElementById("plan");
     const usageEl = document.getElementById("usage");
     const upgradeBtn = document.getElementById("upgradeBtn");
@@ -406,6 +407,7 @@ statusPill.textContent = "Connected";
 
     // Upgrade modal (Stripe wiring later)
     upgradeBtn.addEventListener("click", () => { modalWrap.style.display = "flex"; });
+    loginBtn.addEventListener("click", () => { window.location.href = "/login/google"; });
     closeModal.addEventListener("click", () => { modalWrap.style.display = "none"; });
     modalWrap.addEventListener("click", (e) => { if (e.target === modalWrap) modalWrap.style.display = "none"; });
     goPremium.addEventListener("click", async () => {
@@ -414,6 +416,10 @@ statusPill.textContent = "Connected";
   try {
     const res = await fetch("/create-checkout-session", { method: "POST" });
     const data = await res.json();
+    if (data && data.error === "Not logged in") {
+      addMsg("Please sign in with Google to upgrade.", "bot");
+      return;
+    }
 
     if (data.url) {
       window.location.href = data.url;
