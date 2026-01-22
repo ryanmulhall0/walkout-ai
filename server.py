@@ -342,7 +342,12 @@ def whoami():
     if not u:
         return jsonify({"logged_in": False}), 200
     return jsonify({"logged_in": True, "email": u.get("email"), "premium": bool(u.get("premium"))}), 200
-
+@app.route("/logout", methods=["POST"])
+def logout():
+    session.pop("user", None)
+    # optional: also clear anon session id so user doesn't carry it after signing out
+    session.pop("anon_id", None)
+    return jsonify({"ok": True}), 200
 @app.get("/premium/status")
 def premium_status():
     u = session.get("user")
