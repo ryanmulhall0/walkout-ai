@@ -304,38 +304,52 @@
     const r = await fetch("/premium/status");
     const data = await r.json();
 
-    const planEl = document.getElementById("plan");
     const noteEl = document.getElementById("acctNote");
     const manageBtn = document.getElementById("manageBtn");
-    manageBtn.addEventListener("click", async () => {
-  try {
-    const r = await fetch("/stripe/portal", { method: "POST" });
-    const data = await r.json();
-    if (data.url) {
-      window.location.href = data.url;
-      return;
+
+    // --- Login button: Sign in vs Sign out ---
+    if (data && data.logged_in) {
+      loginBtn.textContent = "Sign out";
+      loginBtn.onclick = async () => {
+        try {
+          await fetch("/logout", { method: "POST" });
+        } finally {
+          window.location.href = "/";
+        }
+      };
+    } else {
+      loginBtn.textContent = "Sign in with Google";
+      loginBtn.onclick = () => {
+        window.location.href = "/login/google";
+      };
     }
-    addMsg(data.error || "Could not open subscription portal.", "bot");
-  } catch (e) {
-    addMsg("Could not open subscription portal.", "bot");
-  }
-});
 
-
+    // --- Premium UI ---
     if (data && data.premium) {
       upgradeBtn.style.display = "none";
       manageBtn.style.display = "inline-block";
       planEl.textContent = "Premium";
       noteEl.textContent = "You have unlimited questions. Thank you for supporting Walkout AI.";
+
+      // Hide weekly usage for premium
+      if (usageEl && usageEl.parentElement) usageEl.parentElement.style.display = "none";
     } else {
       upgradeBtn.style.display = "inline-block";
       manageBtn.style.display = "none";
       planEl.textContent = "Free";
       noteEl.textContent = "Free users get 5 questions per week. Upgrade for unlimited.";
+
+      // Show weekly usage for free users
+      if (usageEl && usageEl.parentElement) usageEl.parentElement.style.display = "flex";
     }
   } catch (e) {
-    // fallback
+    // fallback (keep UI usable)
     upgradeBtn.style.display = "inline-block";
+    loginBtn.textContent = "Sign in with Google";
+    loginBtn.onclick = () => {
+      window.location.href = "/login/google";
+    };
+    if (usageEl && usageEl.parentElement) usageEl.parentElement.style.display = "flex";
   }
 }
 
@@ -424,7 +438,7 @@ statusPill.textContent = "Connected";
 
     // Upgrade modal (Stripe wiring later)
     upgradeBtn.addEventListener("click", () => { modalWrap.style.display = "flex"; });
-    loginBtn.addEventListener("click", () => { window.location.href = "/login/google"; });
+  
     closeModal.addEventListener("click", () => { modalWrap.style.display = "none"; });
     modalWrap.addEventListener("click", (e) => { if (e.target === modalWrap) modalWrap.style.display = "none"; });
 goPremium.addEventListener("click", async () => {
@@ -462,8 +476,7 @@ goPremium.addEventListener("click", async () => {
 
 
     // Placeholder account display for now (we’ll connect real usage counters in Step 3)
-    planEl.textContent = "Free";
-    usageEl.textContent = "0 / 5 used";
+    
 
     addMsg("Ask me UFC stats, predictions, props, last fight, last N fights, etc.", "bot");
   </script>
