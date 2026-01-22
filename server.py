@@ -72,15 +72,22 @@ def ask():
 
         # Identify user for tracking:
         # - logged in => email
-        # - anonymous => anon:<uuid stored in session cookie>
+        # - anonymous => persistent anon ID from header (fallback to session)
         if logged_in:
             ident = email
         else:
-            anon_id = session.get("anon_id")
+            # Prefer persistent anon ID from frontend (localStorage)
+            anon_id = request.headers.get("X-ANON-ID")
+
             if not anon_id:
-                anon_id = uuid.uuid4().hex
-                session["anon_id"] = anon_id
+                # Fallback to session-based anon ID (legacy safety)
+                anon_id = session.get("anon_id")
+                if not anon_id:
+                    anon_id = uuid.uuid4().hex
+                    session["anon_id"] = anon_id
+
             ident = f"anon:{anon_id}"
+
 
         db_url = os.environ.get("DATABASE_URL")
         conn = psycopg2.connect(db_url)
