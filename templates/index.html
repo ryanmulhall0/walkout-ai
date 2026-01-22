@@ -360,6 +360,22 @@ refreshPremiumUI();
     const modalWrap = document.getElementById("modalWrap");
     const closeModal = document.getElementById("closeModal");
     const goPremium = document.getElementById("goPremium");
+// --- Manage subscription (Stripe portal) ---
+manageBtn.onclick = async () => {
+  try {
+    const r = await fetch("/stripe/portal", { method: "POST" });
+    const data = await r.json();
+
+    if (data && data.url) {
+      window.location.href = data.url;
+      return;
+    }
+
+    addMsg((data && data.error) ? data.error : "Could not open subscription portal.", "bot");
+  } catch (e) {
+    addMsg("Could not open subscription portal.", "bot");
+  }
+};
 
     function addMsg(text, who) {
       const row = document.createElement("div");
