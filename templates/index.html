@@ -427,14 +427,25 @@ statusPill.textContent = "Connected";
     loginBtn.addEventListener("click", () => { window.location.href = "/login/google"; });
     closeModal.addEventListener("click", () => { modalWrap.style.display = "none"; });
     modalWrap.addEventListener("click", (e) => { if (e.target === modalWrap) modalWrap.style.display = "none"; });
-    goPremium.addEventListener("click", async () => {
+goPremium.addEventListener("click", async () => {
   modalWrap.style.display = "none";
 
   try {
     const res = await fetch("/create-checkout-session", { method: "POST" });
-    const data = await res.json();
-    if (data && data.error === "Not logged in") {
-      addMsg("Please sign in with Google to upgrade.", "bot");
+
+    let data = {};
+    try {
+      data = await res.json();
+    } catch {
+      addMsg("Checkout failed: invalid server response.", "bot");
+      return;
+    }
+
+    if (!res.ok) {
+      addMsg(
+        data.error || `Checkout failed (${res.status})`,
+        "bot"
+      );
       return;
     }
 
@@ -443,9 +454,9 @@ statusPill.textContent = "Connected";
       return;
     }
 
-    addMsg(data.error || "Could not start checkout.", "bot");
+    addMsg("Checkout failed: missing checkout URL.", "bot");
   } catch (e) {
-    addMsg("Could not start checkout.", "bot");
+    addMsg(`Checkout error: ${e.message}`, "bot");
   }
 });
 
