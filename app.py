@@ -703,13 +703,7 @@ def props_over_under_by_id(fid: int, line: float, stat: str, opp_name: str = Non
         if pd.notna(rs) and int(rs) in (3, 5):
             rounds = int(rs)
     exp_minutes = _expected_fight_minutes(_get_blended_metrics(fid)[0], _get_blended_metrics(opp_id)[0], rounds)
-    # Small deterministic minutes modifier: heavy KO threat shortens fights a bit
-    fhA = _finish_history(fid)
-    fhB = _finish_history(opp_id)
-    if fhA["ko_wins"] >= 2 and fhB["ko_losses"] >= 2:
-        exp_minutes = max(3.0, exp_minutes * 0.94)
-    if fhB["ko_losses"] == 0:
-        exp_minutes = exp_minutes * 1.03
+   
 
 
     # Blended metrics for both fighters (consistent with your prediction defaults)
@@ -1485,7 +1479,7 @@ def predict(a_id: int, b_id: int, last_n_override=None):
         rnd = f"Round {r}"
 
     # ---------------- Final output ----------------
-    shown_time_min = sched_min if method == "Decision" else finish_min
+    shown_time_min = min(exp_min, sched_min)
     out = "\n".join([
         f"PREDICTION — {fighter_name(a_id)} vs {fighter_name(b_id)}",
         f"Confidence: {tier}",
