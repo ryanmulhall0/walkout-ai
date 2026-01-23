@@ -5,12 +5,13 @@ import os
 import psycopg2
 import requests
 import uuid
-from urllib.parse import urlencode
-from datetime import date
 import time
 from collections import deque
+from collections import defaultdict
+from urllib.parse import urlencode
+from datetime import date
 # ---------------------------
-# Basic in-memory rate limiting (anti-bot)
+#  in-memory rate limiting (anti-bot)
 # NOTE: This is per-server-instance. Good enough for now.
 # ---------------------------
 RATE_LIMIT_WINDOW_SEC = 60
@@ -141,39 +142,7 @@ init_db()
 # ---------------------------
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "")
 STRIPE_PRICE_ID = os.getenv("STRIPE_PRICE_ID", "")
-# ---------------------------
-# Basic bot / abuse protection
-# ---------------------------
 
-_RATE_BUCKET = defaultdict(list)
-RATE_LIMIT = 30        # requests
-RATE_WINDOW = 60       # seconds
-
-def _rate_limit_or_429():
-    # Logged-in users bypass rate limit
-    u = session.get("user")
-    if u and u.get("email"):
-        return None
-
-    ip = request.headers.get("X-Forwarded-For", request.remote_addr)
-    now = time.time()
-
-    bucket = _RATE_BUCKET[ip]
-    bucket[:] = [t for t in bucket if now - t < RATE_WINDOW]
-
-    if len(bucket) >= RATE_LIMIT:
-        return jsonify({
-            "answer": "Too many requests. Please slow down.",
-            "rate_limited": True
-        }), 429
-
-    bucket.append(now)
-    return None
-
-
-@flask_app.get("/")
-def home():
-    return render_template("index.html")
 
 @flask_app.get("/")
 def home():
@@ -182,8 +151,14 @@ def home():
 @flask_app.post("/ask")
 def ask():
     used = None
+
+    rl = _rate_limit_or_429()
+    if rl:
+        return rl
+
     try:
         data = request.get_json(force=True) or {}
+
         question = (data.get("question") or "").strip()
 
         if not question:
