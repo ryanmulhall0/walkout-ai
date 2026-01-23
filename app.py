@@ -1474,12 +1474,15 @@ def predict(a_id: int, b_id: int, last_n_override=None):
             finish_min = exp_min * 0.78
             display_time_min = finish_min
 
-        r = int((max(0.01, finish_min) - 0.01) // 5.0) + 1
+        r = int((max(0.01, shown_time_min) - 0.01) // 5.0) + 1
         r = max(1, min(r, rounds_scheduled))
         rnd = f"Round {r}"
 
     # ---------------- Final output ----------------
-    shown_time_min = min(exp_min, sched_min)
+    if method == "Decision":
+        shown_time_min = sched_min
+    else:
+        shown_time_min = min(exp_min, sched_min)
     out = "\n".join([
         f"PREDICTION — {fighter_name(a_id)} vs {fighter_name(b_id)}",
         f"Confidence: {tier}",
