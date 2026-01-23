@@ -7,6 +7,95 @@ import requests
 import uuid
 from urllib.parse import urlencode
 from datetime import date
+import time
+from collections import deque
+# ---------------------------
+# Basic in-memory rate limiting (anti-bot)
+# NOTE: This is per-server-instance. Good enough for now.
+# ---------------------------
+RATE_LIMIT_WINDOW_SEC = 60
+
+# Max requests per window
+RATE_LIMIT_IP_MAX = 60          # per IP per minute (generous)
+RATE_LIMIT_IDENT_MAX = 25       # per anon/user ident per minute (tighter)
+
+_rl_ip = {}     # key -> deque[timestamps]
+_rl_ident = {}  # key -> deque[timestamps]
+
+
+def _client_ip():
+    # Render sits behind a proxy; X-Forwarded-For usually contains the real client IP first.
+    xff = request.headers.get("X-Forwarded-For", "")
+    if xff:
+        return xff.split(",")[0].strip()
+    return request.remote_addr or "unknown"
+
+
+def _get_ident_for_rl():
+    """
+    Returns a stable identifier for rate limiting:
+    - logged-in: email
+    - anonymous: anon:<anon_id> if present, else ip:<ip>
+    """
+    u = session.get("user") or {}
+    email = (u.get("email") or "").strip().lower()
+    if email:
+        return f"user:{email}"
+
+    # If you already implemented anon persistence via localStorage/header,
+    # you may have something like X-Anon-Id being passed. Use it if present:
+    header_anon = (request.headers.get("X-Anon-Id") or "").strip()
+    if header_anon:
+        return f"anon:{header_anon}"
+
+    # fallback (still helps)
+    return f"ip:{_client_ip()}"
+
+
+def _allow_request(bucket_dict, key, limit, window_sec):
+    now = time.time()
+    dq = bucket_dict.get(key)
+    if dq is None:
+        dq = deque()
+        bucket_dict[key] = dq
+
+    # drop old timestamps
+    cutoff = now - window_sec
+    while dq and dq[0] < cutoff:
+        dq.popleft()
+
+    if len(dq) >= limit:
+        retry_after = int(dq[0] + window_sec - now) + 1
+        return False, max(1, retry_after)
+
+    dq.append(now)
+    return True, 0
+
+
+def _rate_limit_or_429():
+    ip = _client_ip()
+    ident = _get_ident_for_rl()
+
+    ok_ip, retry_ip = _allow_request(_rl_ip, ip, RATE_LIMIT_IP_MAX, RATE_LIMIT_WINDOW_SEC)
+    if not ok_ip:
+        return jsonify({
+            "answer": "Too many requests. Please wait a moment and try again.",
+            "rate_limited": True,
+            "scope": "ip",
+            "retry_after": retry_ip
+        }), 429
+
+    ok_ident, retry_ident = _allow_request(_rl_ident, ident, RATE_LIMIT_IDENT_MAX, RATE_LIMIT_WINDOW_SEC)
+    if not ok_ident:
+        return jsonify({
+            "answer": "Too many requests. Please slow down and try again.",
+            "rate_limited": True,
+            "scope": "ident",
+            "retry_after": retry_ident
+        }), 429
+
+    return None
+
 flask_app = Flask(__name__)
 app = flask_app
 # IMPORTANT: stable secret key so anonymous sessions persist across refresh/redeploy
