@@ -144,7 +144,16 @@ STRIPE_PRICE_ID = os.getenv("STRIPE_PRICE_ID", "")
 @flask_app.get("/")
 def home():
     return render_template("index.html")
+@flask_app.post("/ask")
+def ask():
+    used = None
 
+    rl = _rate_limit_or_429()
+    if rl:
+        return rl
+
+    try:
+        data = request.get_json(force=True) or {}
 @flask_app.post("/ask")
 def ask():
     used = None
