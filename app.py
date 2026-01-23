@@ -195,6 +195,48 @@ print("✅ Loaded successfully!\n")
 
 fighters["Fighter_Name"] = fighters["Fighter_Name"].astype(str).str.strip()
 fighters["name_clean"] = fighters["Fighter_Name"].astype(str).apply(_norm_text)
+# ============================================================
+# Gist matcher: detect 2 fighter names anywhere in a long message
+# (Conservative: only triggers when exactly 2 fighters are found)
+# ============================================================
+def _extract_two_fighters_anywhere(text: str):
+    """
+    Returns (fid1, fid2) if exactly two distinct fighter IDs are confidently
+    present in the text (by substring match on name_clean / aliases). Otherwise None.
+    """
+    lowc = _norm_text(text)
+
+    found = []
+    seen = set()
+
+    # 1) Exact substring match against canonical cleaned full names
+    # (This is fast and very safe.)
+    for _, row in fighters[["Fighter_ID", "name_clean"]].iterrows():
+        name_clean = row["name_clean"]
+        if not name_clean:
+            continue
+        if name_clean in lowc:
+            fid = int(row["Fighter_ID"])
+            if fid not in seen:
+                seen.add(fid)
+                found.append(fid)
+                if len(found) > 2:
+                    return None  # too many fighters mentioned; don't guess
+
+    # 2) Also allow alias keys to match (e.g. "o malley") but map via find_fighter_id
+    # Only if we still haven't found 2.
+    if len(found) < 2:
+        for alias_key, alias_vals in ALIASES.items():
+            ak = _norm_text(alias_key)
+            if ak and ak in lowc:
+                fid = find_fighter_id(alias_key, allow_ask=False)
+                if isinstance(fid, int) and fid not in seen:
+                    seen.add(fid)
+                    found.append(fid)
+                    if len(found) > 2:
+                        return None
+
+    return (found[0], found[1]) if len(found) == 2 else None
 
 # ============================================================
 # Fighter helpers
@@ -1548,6 +1590,19 @@ def english_router(q: str):
     cleaned = re.sub(r"[?.,!]", " ", original)
     cleaned = re.sub(r"\s+", " ", cleaned).strip()
     lowc = cleaned.lower()
+    # Gist matchup detection:
+    # If the user rambles but includes exactly 2 fighter names, treat as a matchup
+    # ONLY when there is some matchup cue.
+    matchup_cue = any(k in lowc for k in [
+        " vs ", " versus ", " v ", " or ", "who you got", "who do you got",
+        "who wins", "who will win", "pick", "got", "fight", "bout", "matchup", "against"
+    ])
+
+    if matchup_cue:
+        pair = _extract_two_fighters_anywhere(cleaned)
+        if pair:
+            a_id, b_id = pair
+            return f"predict {fighter_name(a_id)} vs {fighter_name(b_id)}"
 
     # last N / recent
     last_n = None
