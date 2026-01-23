@@ -141,6 +141,40 @@ init_db()
 # ---------------------------
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "")
 STRIPE_PRICE_ID = os.getenv("STRIPE_PRICE_ID", "")
+# ---------------------------
+# Basic bot / abuse protection
+# ---------------------------
+
+_RATE_BUCKET = defaultdict(list)
+RATE_LIMIT = 30        # requests
+RATE_WINDOW = 60       # seconds
+
+def _rate_limit_or_429():
+    # Logged-in users bypass rate limit
+    u = session.get("user")
+    if u and u.get("email"):
+        return None
+
+    ip = request.headers.get("X-Forwarded-For", request.remote_addr)
+    now = time.time()
+
+    bucket = _RATE_BUCKET[ip]
+    bucket[:] = [t for t in bucket if now - t < RATE_WINDOW]
+
+    if len(bucket) >= RATE_LIMIT:
+        return jsonify({
+            "answer": "Too many requests. Please slow down.",
+            "rate_limited": True
+        }), 429
+
+    bucket.append(now)
+    return None
+
+
+@flask_app.get("/")
+def home():
+    return render_template("index.html")
+
 @flask_app.get("/")
 def home():
     return render_template("index.html")
