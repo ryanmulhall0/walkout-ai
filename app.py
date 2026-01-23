@@ -1474,7 +1474,7 @@ def predict(a_id: int, b_id: int, last_n_override=None):
             finish_min = exp_min * 0.78
             display_time_min = finish_min
 
-        r = int((max(0.01, shown_time_min) - 0.01) // 5.0) + 1
+        r = int((max(0.01, min(exp_min, sched_min)) - 0.01) // 5.0) + 1
         r = max(1, min(r, rounds_scheduled))
         rnd = f"Round {r}"
 
