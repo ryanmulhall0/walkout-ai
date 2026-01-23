@@ -102,6 +102,12 @@ app = flask_app
 # IMPORTANT: stable secret key so anonymous sessions persist across refresh/redeploy
 flask_app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-change-me")
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-secret")
+# ---------------------------
+# Session / cookie security (production-safe)
+# ---------------------------
+flask_app.config["SESSION_COOKIE_HTTPONLY"] = True
+flask_app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+flask_app.config["SESSION_COOKIE_SECURE"] = True
 def init_db():
     db_url = os.environ.get("DATABASE_URL")
     if not db_url:
