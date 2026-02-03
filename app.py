@@ -531,15 +531,33 @@ def _find_next_upcoming_for_fighter(fid: int):
     return cand.iloc[0]
 
 def _upcoming_opponent(fid: int):
+    # Make sure fid is always an int for comparisons
+    try:
+        fid = int(fid)
+    except Exception:
+        return None, None
+
     row = _find_next_upcoming_for_fighter(fid)
     if row is None:
         return None, None
+
     a = pd.to_numeric(row.get("Fighter_A_ID"), errors="coerce")
     b = pd.to_numeric(row.get("Fighter_B_ID"), errors="coerce")
     if pd.isna(a) or pd.isna(b):
         return None, None
-    opp = int(b) if int(a) == fid else int(a)
-    return int(opp), row
+
+    a = int(a)
+    b = int(b)
+
+    # IMPORTANT: only return an opponent if fid is actually in the matchup row
+    if a == fid:
+        return b, row
+    if b == fid:
+        return a, row
+
+    # If the row doesn't actually contain fid, treat as "no upcoming fight"
+    return None, None
+
 
 def _resolve_rounds_for_upcoming(fid: int, opp_id: int):
     row = _find_next_upcoming_for_fighter(fid)
