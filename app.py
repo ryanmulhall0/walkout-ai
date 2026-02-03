@@ -1328,6 +1328,295 @@ def _size_edge_from_wc(a_id: int, b_id: int):
         return 0.0, "Unknown weight classes"
     diff = wca - wcb
     return float(diff), f"{_norm_wc(_wc_label(a_id, fighters))} vs {_norm_wc(_wc_label(b_id, fighters))} (diff {diff})"
+# ---------------------------
+# Safe additional modifiers (inactivity, opponent quality, mutual opponents, weight class history)
+# ---------------------------
+
+def _clamp(x, lo, hi):
+    try:
+        return max(lo, min(hi, float(x)))
+    except Exception:
+        return 0.0
+
+def _fight_date_from_row(row):
+    """
+    Try to extract a fight date from common column names.
+    Returns pandas Timestamp or NaT.
+    """
+    for col in ["Date", "Fight_Date", "Event_Date", "event_date", "date"]:
+        if col in row.index:
+            dt = pd.to_datetime(row.get(col), errors="coerce", utc=False)
+            if pd.notna(dt):
+                return dt
+    return pd.NaT
+
+def _last_fight_date(fid: int, rows: pd.DataFrame = None):
+    """
+    Uses completed rows for fighter and returns latest date as Timestamp.
+    If no date columns exist, returns NaT.
+    """
+    if rows is None:
+        rows = _get_completed_rows_for_fighter(fid)
+    if rows is None or len(rows) == 0:
+        return pd.NaT
+
+    # Find best date column present
+    date_cols = [c for c in ["Date", "Fight_Date", "Event_Date", "event_date", "date"] if c in rows.columns]
+    if not date_cols:
+        return pd.NaT
+
+    dt = pd.to_datetime(rows[date_cols[0]], errors="coerce")
+    if dt.isna().all():
+        # try other date cols
+        for c in date_cols[1:]:
+            dt2 = pd.to_datetime(rows[c], errors="coerce")
+            if not dt2.isna().all():
+                dt = dt2
+                break
+
+    if dt.isna().all():
+        return pd.NaT
+
+    return dt.max()
+
+def _days_since_last_fight(fid: int, rows: pd.DataFrame = None):
+    last_dt = _last_fight_date(fid, rows)
+    if pd.isna(last_dt):
+        return float("nan")
+    # compare to "today"
+    today_dt = pd.to_datetime(date.today())
+    try:
+        return float((today_dt - last_dt).days)
+    except Exception:
+        return float("nan")
+
+def _inactivity_edge(a_id: int, b_id: int, A_rows: pd.DataFrame, B_rows: pd.DataFrame):
+    """
+    Positive edge favors A (A is more active / less layoff than B).
+    Very small, capped.
+    """
+    da = _days_since_last_fight(a_id, A_rows)
+    db = _days_since_last_fight(b_id, B_rows)
+    if pd.isna(da) or pd.isna(db):
+        return 0.0, "inactivity n/a"
+
+    # If someone is very inactive, apply small penalty
+    # Baseline: differences matter after ~90 days.
+    diff_days = db - da  # positive => B more inactive => favors A
+
+    # Convert to years-ish scale, small multiplier
+    edge = 0.08 * (diff_days / 365.0)
+
+    # Extra penalty if someone has a huge layoff (over 18 months)
+    if da >= 540:
+        edge -= 0.05
+    if db >= 540:
+        edge += 0.05
+
+    edge = _clamp(edge, -0.20, 0.20)
+    note = f"days since last: A={int(da)}, B={int(db)}"
+    return edge, note
+
+def _opponent_ids_from_rows(rows: pd.DataFrame):
+    if rows is None or len(rows) == 0:
+        return []
+    if "Opponent_ID" not in rows.columns:
+        return []
+    opp = pd.to_numeric(rows["Opponent_ID"], errors="coerce").dropna()
+    return opp.astype(int).tolist()
+
+def _simple_win_loss_from_rows(rows: pd.DataFrame):
+    if rows is None or len(rows) == 0 or "Result" not in rows.columns:
+        return 0, 0
+    res = rows["Result"].astype(str).str.upper().str.strip()
+    w = int((res == "W").sum())
+    l = int((res == "L").sum())
+    return w, l
+
+def _opponent_winrate(fid: int):
+    """
+    Approx opponent quality proxy: opponent UFC win rate from completed_fights.
+    Uses completed_fights Winner_Fighter_ID and Fighter_A_ID/B_ID.
+    """
+    cf = completed_fights
+    needed = {"Winner_Fighter_ID", "Fighter_A_ID", "Fighter_B_ID"}
+    if cf is None or any(c not in cf.columns for c in needed):
+        return float("nan")
+
+    involved = cf[(cf["Fighter_A_ID"] == fid) | (cf["Fighter_B_ID"] == fid)]
+    if len(involved) == 0:
+        return float("nan")
+
+    wins = 0
+    losses = 0
+    for _, r in involved.iterrows():
+        winner = pd.to_numeric(r.get("Winner_Fighter_ID"), errors="coerce")
+        if pd.isna(winner):
+            continue
+        if int(winner) == int(fid):
+            wins += 1
+        else:
+            losses += 1
+
+    total = wins + losses
+    if total == 0:
+        return float("nan")
+    return wins / total
+
+def _strength_of_schedule_score(fid: int, rows: pd.DataFrame = None):
+    """
+    Strength of schedule proxy:
+    Average opponent UFC winrate for opponents faced (simple, safe).
+    """
+    if rows is None:
+        rows = _get_completed_rows_for_fighter(fid)
+    opp_ids = _opponent_ids_from_rows(rows)
+    if not opp_ids:
+        return float("nan"), "sos n/a"
+
+    wrs = []
+    for oid in opp_ids:
+        wr = _opponent_winrate(oid)
+        if pd.notna(wr):
+            wrs.append(wr)
+
+    if len(wrs) < 3:
+        return float("nan"), "sos insufficient"
+
+    score = float(sum(wrs) / len(wrs))  # 0..1
+    return score, f"avg opp winrate {score*100:.0f}% (n={len(wrs)})"
+
+def _sos_edge(a_id: int, b_id: int, A_rows: pd.DataFrame, B_rows: pd.DataFrame):
+    """
+    Positive favors A if A faced tougher average opponents.
+    Small, capped.
+    """
+    sa, noteA = _strength_of_schedule_score(a_id, A_rows)
+    sb, noteB = _strength_of_schedule_score(b_id, B_rows)
+    if pd.isna(sa) or pd.isna(sb):
+        return 0.0, "sos n/a"
+
+    diff = sa - sb  # 0..1 scale
+    edge = _clamp(diff * 0.25, -0.25, 0.25)
+    note = f"A {noteA}; B {noteB}"
+    return edge, note
+
+def _mutual_opponents_edge(a_id: int, b_id: int, A_rows: pd.DataFrame, B_rows: pd.DataFrame):
+    """
+    Compare how A and B did vs shared opponents (by Opponent_ID).
+    Positive favors A.
+    """
+    if A_rows is None or B_rows is None:
+        return 0.0, "mutual n/a"
+    if "Opponent_ID" not in A_rows.columns or "Opponent_ID" not in B_rows.columns:
+        return 0.0, "mutual n/a"
+
+    A_map = {}
+    for _, r in A_rows.iterrows():
+        oid = pd.to_numeric(r.get("Opponent_ID"), errors="coerce")
+        if pd.isna(oid):
+            continue
+        A_map[int(oid)] = str(r.get("Result", "")).upper().strip()
+
+    B_map = {}
+    for _, r in B_rows.iterrows():
+        oid = pd.to_numeric(r.get("Opponent_ID"), errors="coerce")
+        if pd.isna(oid):
+            continue
+        B_map[int(oid)] = str(r.get("Result", "")).upper().strip()
+
+    shared = sorted(set(A_map.keys()) & set(B_map.keys()))
+    if len(shared) < 2:
+        return 0.0, "mutual insufficient"
+
+    def winrate(map_):
+        w = 0
+        l = 0
+        for oid in shared:
+            res = map_.get(oid, "")
+            if res == "W":
+                w += 1
+            elif res == "L":
+                l += 1
+        tot = w + l
+        return (w / tot) if tot else float("nan")
+
+    wa = winrate(A_map)
+    wb = winrate(B_map)
+    if pd.isna(wa) or pd.isna(wb):
+        return 0.0, "mutual n/a"
+
+    edge = _clamp((wa - wb) * 0.15, -0.15, 0.15)
+    note = f"shared opponents n={len(shared)}; A winrate {wa*100:.0f}% vs B {wb*100:.0f}%"
+    return edge, note
+
+def _row_weight_class_label(row):
+    """
+    Try to pull a weight-class label from a fight row (not fighters table).
+    """
+    for col in ["Weight_Class", "WeightClass", "weight_class", "Division", "division"]:
+        if col in row.index:
+            return str(row.get(col) or "").strip()
+    return ""
+
+def _recent_weight_classes(fid: int, rows: pd.DataFrame, last_n: int = 5):
+    if rows is None or len(rows) == 0:
+        return []
+    # Use last N rows in time order if possible
+    r = rows.copy()
+    # If there is a date column, sort by it
+    date_cols = [c for c in ["Date", "Fight_Date", "Event_Date", "event_date", "date"] if c in r.columns]
+    if date_cols:
+        r["__dt"] = pd.to_datetime(r[date_cols[0]], errors="coerce")
+        r = r.sort_values("__dt")
+    r = r.tail(last_n)
+
+    wcs = []
+    for _, row in r.iterrows():
+        wc = _row_weight_class_label(row)
+        if wc:
+            wcs.append(_norm_wc(wc))
+    return wcs
+
+def _weight_class_history_edge(a_id: int, b_id: int, A_rows: pd.DataFrame, B_rows: pd.DataFrame, upcoming_wc_label: str = ""):
+    """
+    Two small ideas:
+    1) Stability: fewer recent weight-class switches = small advantage
+    2) Familiarity: if last fight WC matches upcoming, small advantage
+    """
+    # If we don't have per-fight WCs, safely no-op
+    A_wcs = _recent_weight_classes(a_id, A_rows, last_n=5)
+    B_wcs = _recent_weight_classes(b_id, B_rows, last_n=5)
+    if not A_wcs and not B_wcs:
+        return 0.0, "wc history n/a"
+
+    # Stability score: unique count (more unique => less stable)
+    A_unique = len(set(A_wcs)) if A_wcs else 99
+    B_unique = len(set(B_wcs)) if B_wcs else 99
+    # Favor the more stable one (lower unique count)
+    stability_edge = _clamp((B_unique - A_unique) * 0.05, -0.10, 0.10)
+
+    # Familiarity: did they fight at upcoming class last time?
+    familiarity_edge = 0.0
+    note_fam = ""
+    if upcoming_wc_label:
+        up = _norm_wc(upcoming_wc_label)
+        A_last = A_wcs[-1] if A_wcs else ""
+        B_last = B_wcs[-1] if B_wcs else ""
+        if A_last and B_last:
+            if A_last == up and B_last != up:
+                familiarity_edge += 0.06
+                note_fam = "A last fight at upcoming WC"
+            elif B_last == up and A_last != up:
+                familiarity_edge -= 0.06
+                note_fam = "B last fight at upcoming WC"
+
+    edge = _clamp(stability_edge + familiarity_edge, -0.15, 0.15)
+    note = f"A recent WCs={A_wcs or 'n/a'}; B recent WCs={B_wcs or 'n/a'}"
+    if note_fam:
+        note += f"; {note_fam}"
+    return edge, note
+
 
 def predict(a_id: int, b_id: int, last_n_override=None):
     key = _cache_key("predict_v2", *sorted([a_id, b_id]), last_n_override, RECENT_N_DEFAULT, RECENT_WEIGHT_DEFAULT)
@@ -1377,6 +1666,43 @@ def predict(a_id: int, b_id: int, last_n_override=None):
     else:
         A_rows = _get_completed_rows_for_fighter(a_id)
         B_rows = _get_completed_rows_for_fighter(b_id)
+    # --- Additional safe modifiers (small, capped) ---
+    # Upcoming weight class (if available from upcoming row)
+    upcoming_wc = ""
+    try:
+        # if rowA exists for upcoming matchup
+        if rowA is not None:
+            # try common columns
+            if "Weight_Class" in rowA.index:
+                upcoming_wc = str(rowA.get("Weight_Class") or "").strip()
+            elif "WeightClass" in rowA.index:
+                upcoming_wc = str(rowA.get("WeightClass") or "").strip()
+    except Exception:
+        upcoming_wc = ""
+
+    # Inactivity / layoffs
+    inact_edge, inact_note = _inactivity_edge(a_id, b_id, A_rows, B_rows)
+    if inact_edge != 0.0:
+        score += inact_edge
+        contribs.append((abs(inact_edge), inact_edge, f"Inactivity ({inact_note})", 0.0, 0.0))
+
+    # Strength of schedule (opponent quality proxy)
+    sos_edge, sos_note = _sos_edge(a_id, b_id, A_rows, B_rows)
+    if sos_edge != 0.0:
+        score += sos_edge
+        contribs.append((abs(sos_edge), sos_edge, f"Opponent quality ({sos_note})", 0.0, 0.0))
+
+    # Mutual opponents
+    mutual_edge, mutual_note = _mutual_opponents_edge(a_id, b_id, A_rows, B_rows)
+    if mutual_edge != 0.0:
+        score += mutual_edge
+        contribs.append((abs(mutual_edge), mutual_edge, f"Mutual opponents ({mutual_note})", 0.0, 0.0))
+
+    # Multi-weight class history (stability + familiarity)
+    wc_hist_edge, wc_hist_note = _weight_class_history_edge(a_id, b_id, A_rows, B_rows, upcoming_wc_label=upcoming_wc)
+    if wc_hist_edge != 0.0:
+        score += wc_hist_edge
+        contribs.append((abs(wc_hist_edge), wc_hist_edge, f"Weight class history ({wc_hist_note})", 0.0, 0.0))
 
     A_tdd = _tdd_value(a_id, A_rows)
     B_tdd = _tdd_value(b_id, B_rows)
@@ -1516,15 +1842,16 @@ def predict(a_id: int, b_id: int, last_n_override=None):
             finish_min = exp_min * 0.78
             display_time_min = finish_min
 
-        r = int((max(0.01, min(exp_min, sched_min)) - 0.01) // 5.0) + 1
+        r = int((max(0.01, min(display_time_min, sched_min)) - 0.01) // 5.0) + 1
         r = max(1, min(r, rounds_scheduled))
         rnd = f"Round {r}"
 
     # ---------------- Final output ----------------
-    if method == "Decision":
-        shown_time_min = sched_min
-    else:
-        shown_time_min = min(exp_min, sched_min)
+# display_time_min was set above to match the method (Decision => scheduled, Finish => earlier)
+shown_time_min = min(display_time_min, sched_min)
+if method == "Decision":
+    shown_time_min = sched_min
+
     out = "\n".join([
         f"PREDICTION — {fighter_name(a_id)} vs {fighter_name(b_id)}",
         f"Confidence: {tier}",
