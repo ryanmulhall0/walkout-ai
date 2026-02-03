@@ -744,8 +744,19 @@ def props_over_under_by_id(fid: int, line: float, stat: str, opp_name: str = Non
         rs = pd.to_numeric(opp_row.get("Rounds_Scheduled"), errors="coerce")
         if pd.notna(rs) and int(rs) in (3, 5):
             rounds = int(rs)
-    exp_minutes = _expected_fight_minutes(_get_blended_metrics(fid)[0], _get_blended_metrics(opp_id)[0], rounds)
-   
+   # Expected fight time — MUST match prediction logic
+   A, _, _ = _get_blended_metrics(fid)
+   B, _, _ = _get_blended_metrics(opp_id)
+
+   raw_exp_minutes = _expected_fight_minutes(A, B, rounds)
+   sched_minutes = 5.0 * rounds
+
+   # Use the SAME snap logic as predict()
+   if raw_exp_minutes >= 0.85 * sched_minutes:
+       exp_minutes = sched_minutes
+   else:
+       exp_minutes = min(raw_exp_minutes, sched_minutes)
+
 
 
     # Blended metrics for both fighters (consistent with your prediction defaults)
