@@ -729,8 +729,115 @@ def props_over_under_by_id(fid: int, line: float, stat: str, opp_name: str = Non
             return f"I couldn't match the opponent name: {opp_name}"
         opp_id = opp_res
         opp_row = None
-    else:
+        else:
+        # 1) Primary: use existing upcoming-opponent logic
         opp_id, opp_row = _upcoming_opponent(fid)
+
+        # 2) Fallback: infer from any "upcoming/scheduled" fights dataframe you have loaded
+        if opp_id is None:
+            def _infer_upcoming_from_loaded_frames(_fid: int):
+                # Try common dataframe names without breaking anything if they don't exist
+                candidates = []
+                for name in ("upcoming_fights", "scheduled_fights", "fights_df", "fights", "Fights", "df_fights"):
+                    obj = globals().get(name)
+                    if obj is None:
+                        continue
+                    try:
+                        import pandas as pd
+                        if not isinstance(obj, pd.DataFrame) or len(obj) == 0:
+                            continue
+                    except Exception:
+                        continue
+                    candidates.append(obj)
+
+                if not candidates:
+                    return None, None
+
+                # Try common column pairs that represent matchup rows
+                col_pairs = [
+                    ("Fighter_A_ID", "Fighter_B_ID"),
+                    ("Fighter1_ID", "Fighter2_ID"),
+                    ("Fighter_ID", "Opponent_ID"),
+                    ("Red_Fighter_ID", "Blue_Fighter_ID"),
+                ]
+
+                import pandas as pd
+
+                def _to_int(x):
+                    try:
+                        return int(x)
+                    except Exception:
+                        return None
+
+                def _date_value(row):
+                    # Use whatever date column exists to pick the nearest/most relevant upcoming
+                    for dc in ("Fight_Date", "Date", "Event_Date", "Scheduled_Date"):
+                        if dc in row.index and pd.notna(row.get(dc)):
+                            try:
+                                return pd.to_datetime(row.get(dc))
+                            except Exception:
+                                pass
+                    return pd.Timestamp.max
+
+                best = None
+                best_dt = pd.Timestamp.max
+
+                for df in candidates:
+                    # If there's a "Status" or "Result" column, bias toward rows that look "upcoming"
+                    df2 = df
+                    if "Status" in df2.columns:
+                        try:
+                            df2 = df2[df2["Status"].astype(str).str.lower().str.contains("upcoming|scheduled|next", na=False)]
+                        except Exception:
+                            pass
+                    if "Result" in df2.columns:
+                        try:
+                            # upcoming often has blank/NaN result
+                            df2 = df2[df2["Result"].isna() | (df2["Result"].astype(str).str.strip() == "")]
+                        except Exception:
+                            pass
+
+                    for a_col, b_col in col_pairs:
+                        if a_col not in df2.columns or b_col not in df2.columns:
+                            continue
+
+                        # rows where fid appears in either side
+                        try:
+                            mask = (pd.to_numeric(df2[a_col], errors="coerce") == _fid) | (pd.to_numeric(df2[b_col], errors="coerce") == _fid)
+                            sub = df2[mask]
+                        except Exception:
+                            continue
+
+                        if len(sub) == 0:
+                            continue
+
+                        # Pick the "nearest" by date if possible
+                        for _, row in sub.iterrows():
+                            dt = _date_value(row)
+                            if dt < best_dt:
+                                best_dt = dt
+                                best = row
+
+                if best is None:
+                    return None, None
+
+                # Determine opponent id from the row
+                for a_col, b_col in col_pairs:
+                    if a_col in best.index and b_col in best.index:
+                        a = _to_int(best.get(a_col))
+                        b = _to_int(best.get(b_col))
+                        if a == _fid and b is not None:
+                            return b, best
+                        if b == _fid and a is not None:
+                            return a, best
+
+                return None, best
+
+            opp_id2, opp_row2 = _infer_upcoming_from_loaded_frames(fid)
+            if opp_id2 is not None:
+                opp_id, opp_row = opp_id2, opp_row2
+
+        # 3) If STILL unknown, then ask user
         if opp_id is None:
             STATE["pending"] = {
                 "kind": "props_need_opp",
@@ -739,6 +846,7 @@ def props_over_under_by_id(fid: int, line: float, stat: str, opp_name: str = Non
                 "line": float(line),
             }
             return f"I don't see an upcoming fight for {fighter_name(fid)}. Who is the opponent?"
+
 
     # Rounds
     rounds = 3
