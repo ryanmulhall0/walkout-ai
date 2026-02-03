@@ -1652,6 +1652,9 @@ def predict(a_id: int, b_id: int, last_n_override=None):
 
     A, _ = _get_mode_metrics(a_id, last_n_override)
     B, _ = _get_mode_metrics(b_id, last_n_override)
+    score = 0.0
+    contribs = []
+
     # --- Style/physics/stance modifiers (deterministic) ---
     # Determine "wrestler" vs "striker"
     A_wrestler = _is_high_level_wrestler(A)
