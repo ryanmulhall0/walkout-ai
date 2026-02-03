@@ -1849,10 +1849,10 @@ def predict(a_id: int, b_id: int, last_n_override=None):
         rnd = f"Round {r}"
 
     # ---------------- Final output ----------------
-# display_time_min was set above to match the method (Decision => scheduled, Finish => earlier)
-shown_time_min = min(display_time_min, sched_min)
-if method == "Decision":
-    shown_time_min = sched_min
+    # display_time_min was set above to match the method (Decision => scheduled, Finish => earlier)
+    shown_time_min = min(display_time_min, sched_min)
+    if method == "Decision":
+        shown_time_min = sched_min
 
     out = "\n".join([
         f"PREDICTION — {fighter_name(a_id)} vs {fighter_name(b_id)}",
