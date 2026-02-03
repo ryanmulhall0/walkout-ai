@@ -718,10 +718,9 @@ def data_health():
 # Stat functions (kept + expanded)
 # ============================================================
 def props_over_under_by_id(fid: int, line: float, stat: str, opp_name: str = None):
-    # stat: "sig", "td", "minutes"
     stat = (stat or "").strip().lower()
 
-    # Resolve opponent: either explicit opp_name or pull upcoming
+    # Resolve opponent (explicit or upcoming)
     if opp_name:
         opp_res = find_fighter_id(opp_name, allow_ask=True)
         if isinstance(opp_res, tuple) and opp_res[0] == "__AMBIG__":
@@ -733,83 +732,60 @@ def props_over_under_by_id(fid: int, line: float, stat: str, opp_name: str = Non
     else:
         opp_id, opp_row = _upcoming_opponent(fid)
         if opp_id is None:
-            STATE["pending"] = {"kind": "props_need_opp", "fid": fid, "stat": stat, "line": float(line)}
+            STATE["pending"] = {
+                "kind": "props_need_opp",
+                "fid": fid,
+                "stat": stat,
+                "line": float(line),
+            }
             return f"I don't see an upcoming fight for {fighter_name(fid)}. Who is the opponent?"
 
-
-               
-    # rounds + expected minutes
+    # Rounds
     rounds = 3
     if opp_row is not None:
         rs = pd.to_numeric(opp_row.get("Rounds_Scheduled"), errors="coerce")
         if pd.notna(rs) and int(rs) in (3, 5):
             rounds = int(rs)
-   # Expected fight time — MUST match prediction logic
-   A, _, _ = _get_blended_metrics(fid)
-   B, _, _ = _get_blended_metrics(opp_id)
 
-   raw_exp_minutes = _expected_fight_minutes(A, B, rounds)
-   sched_minutes = 5.0 * rounds
-
-   # Use the SAME snap logic as predict()
-   if raw_exp_minutes >= 0.85 * sched_minutes:
-       exp_minutes = sched_minutes
-   else:
-       exp_minutes = min(raw_exp_minutes, sched_minutes)
-
-
-
-    # Blended metrics for both fighters (consistent with your prediction defaults)
+    # === SINGLE SOURCE OF TRUTH FOR EXPECTED TIME ===
     A, _, _ = _get_blended_metrics(fid)
     B, _, _ = _get_blended_metrics(opp_id)
+
+    raw_exp_minutes = _expected_fight_minutes(A, B, rounds)
+    sched_minutes = 5.0 * rounds
+
+    if raw_exp_minutes >= 0.85 * sched_minutes:
+        exp_minutes = sched_minutes
+    else:
+        exp_minutes = min(raw_exp_minutes, sched_minutes)
 
     # Expected rates
     exp_sigpm = _expected_rate(A.get("sig_pm"), B.get("sig_abs_pm"))
     exp_tdp15 = _expected_rate(A.get("td_p15"), B.get("td_allowed_p15"))
 
-    # Convert to totals
-    exp_sig_total = exp_sigpm * exp_minutes if pd.notna(exp_sigpm) and pd.notna(exp_minutes) else float("nan")
-    exp_td_total = exp_tdp15 * (exp_minutes / 15.0) if pd.notna(exp_tdp15) and pd.notna(exp_minutes) else float("nan")
-    exp_min_total = exp_minutes
+    exp_sig_total = exp_sigpm * exp_minutes if pd.notna(exp_sigpm) else float("nan")
+    exp_td_total = exp_tdp15 * (exp_minutes / 15.0) if pd.notna(exp_tdp15) else float("nan")
 
-    if stat in {"sig", "sig strikes", "significant strikes"}:
+    if stat in {"sig", "significant strikes"}:
         exp = exp_sig_total
         label = "significant strikes"
-    elif stat in {"td", "takedowns", "takedown"}:
+    elif stat in {"td", "takedowns"}:
         exp = exp_td_total
         label = "takedowns"
-    elif stat in {"min", "mins", "minutes", "time"}:
-        exp = exp_min_total
+    elif stat in {"minutes", "time"}:
+        exp = exp_minutes
         label = "minutes"
     else:
         return "Stat must be sig, td, or minutes."
 
-    if pd.isna(exp):
-        return f"Not enough data to set a {label} prop for {fighter_name(fid)}."
-
-    # Deterministic lean (no randomness)
     diff = exp - float(line)
-    if diff > 0:
-        pick = "Over"
-    elif diff < 0:
-        pick = "Under"
-    else:
-        pick = "Push"
+    pick = "Over" if diff > 0 else "Under" if diff < 0 else "Push"
 
-    # Cache key so it does not flip-flop
-    key = _cache_key("prop", fid, opp_id, stat, float(line), RECENT_N_DEFAULT, RECENT_WEIGHT_DEFAULT)
-    if key in PROP_CACHE:
-        return PROP_CACHE[key]
-
-    out = (
+    return (
         f"PROP — {fighter_name(fid)} vs {fighter_name(opp_id)}\n"
         f"{pick} {line} {label}\n"
         f"Model expected: {exp:.2f} {label} (expected fight time {exp_minutes:.2f} min)"
     )
-
-    PROP_CACHE[key] = out
-    _save_cache()
-    return out
 
 
 def last_fight_stat_by_id(fid: int, metric: str = "summary"):
