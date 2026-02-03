@@ -1803,8 +1803,10 @@ def predict(a_id: int, b_id: int, last_n_override=None):
     sched_min = 5.0 * rounds_scheduled
     exp_min = _expected_fight_minutes(A, B, rounds_scheduled)
     display_time_min = exp_min
-       # ---------------- Final method pick ----------------
+    display_time_min = exp_min
+    # ---------------- Final method pick ----------------
     if exp_min >= 0.85 * sched_min:
+
         method = "Decision"
         rnd = "Decision"
         display_time_min = sched_min
