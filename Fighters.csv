@@ -1,4 +1,4 @@
-Fight_ID,Fighter_Name,Height,Reach,Stance,Weight_Class,Date_of_Birth,Country,Active_Status
+Fighter_ID,Fighter_Name,Height,Reach,Stance,Weight_Class,Date_of_Birth,Country,Active_Status
 1,Darion Abbey,6'2'',80'',orthodox,heavyweight,"February 25, 1993",USA,No
 2,Donte Johnson,5'8'',74'',southpaw,middleweight,"January 25, 1999",USA,Yes
 3,Sedriques Dumas,6'2'',79'',orthodox,middleweight,August 6. 1995,USA,Yes
@@ -916,3 +916,4 @@ Fight_ID,Fighter_Name,Height,Reach,Stance,Weight_Class,Date_of_Birth,Country,Act
 915,Themba Gorimbo,6'1'',77'',orthodox,welterweight,"January 23, 1991",Zimbabwe,Yes
 
 916,Jacobe Smith,5'10'',72'',southpaw,welterweight,"January 17, 1996",USA,Yes
+
