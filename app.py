@@ -2172,7 +2172,7 @@ def handle_query(q: str):
             if not isinstance(opp_res, int):
                 return "I couldn't match that opponent name. Try the full name."
             STATE["pending"] = None
-            return props_over_under_by_id(
+            return props_over_under_by_id(fid, line, stat, opp_name=None)
                 pending["fid"],
                 pending["line"],
                 pending["stat"],
