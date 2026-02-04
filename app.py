@@ -576,6 +576,13 @@ def _expected_fight_minutes(A: dict, B: dict, rounds_scheduled: int):
     if pd.isna(b_t): b_t = sched_min * 60
     exp_sec = min(sched_min * 60, 0.5 * a_t + 0.5 * b_t)
     return exp_sec / 60.0
+def _snap_expected_minutes(exp_minutes: float, rounds_scheduled: int, snap_threshold: float = 0.85):
+    sched_minutes = 5.0 * int(rounds_scheduled)
+    if pd.isna(exp_minutes):
+        return float("nan")
+    if exp_minutes >= snap_threshold * sched_minutes:
+        return sched_minutes
+    return min(exp_minutes, sched_minutes)
 
 # ============================================================
 # Style tags + recent form/trajectory
@@ -770,13 +777,7 @@ def props_over_under_by_id(fid: int, line: float, stat: str, opp_name: str = Non
     A, _, _ = _get_blended_metrics(fid)
     B, _, _ = _get_blended_metrics(opp_id)
 
-    raw_exp_minutes = _expected_fight_minutes(A, B, rounds)
-    sched_minutes = 5.0 * rounds
-
-    if raw_exp_minutes >= 0.85 * sched_minutes:
-        exp_minutes = sched_minutes
-    else:
-        exp_minutes = min(raw_exp_minutes, sched_minutes)
+    exp_minutes = _snap_expected_minutes(_expected_fight_minutes(A, B, rounds), rounds)
 
     # Expected rates
     exp_sigpm = _expected_rate(A.get("sig_pm"), B.get("sig_abs_pm"))
@@ -1992,8 +1993,7 @@ def english_router(q: str):
             return f"props {tmp.strip()} {info['stat']} {info['line']}"
 
 
-
-        # Last fight (with optional metric)
+    # Last fight (with optional metric)
     if "last fight" in lowc:
         metric = "summary"
         if any(k in lowc for k in ["sig", "significant", "strikes", "strike"]):
@@ -2222,24 +2222,28 @@ def handle_query(q: str):
 
        # Direct commands should bypass the English router (router is for natural language)
     direct_prefixes = (
-        "age ",
-        "sig acc ",
-        "td acc ",
-        "defense ",
-        "sig pm ",
-        "abs sig pm ",
-        "td pm ",
-        "avg sig fight ",
-        "avg td fight ",
-        "avg ctrl fight ",
-        "avg time ",
-        "style ",
-        "form ",
-        "props ",
-        "predict ",
-        "record ",
-        "health",
-    )
+    "age ",
+    "sig acc ",
+    "td acc ",
+    "defense ",
+    "sig pm ",
+    "abs sig pm ",
+    "td pm ",
+    "avg sig fight ",
+    "avg td fight ",
+    "avg ctrl fight ",
+    "avg time ",
+    "style ",
+    "form ",
+    "props ",
+    "predict ",
+    "record ",
+    "health",
+    "tdd ",
+    "lastfight ",
+    "lastn ",
+)
+
 
     if any(low.startswith(p) for p in direct_prefixes):
         routed = q
@@ -2529,23 +2533,6 @@ def handle_query(q: str):
 
     return "Type: help"
 
-# ============================================================
-# Run loop
-# ============================================================
-def cli_main():
-    print("✅ Walkout AI is running.")
-    print("Type: help  |  Type: quit\n")
-
-    while True:
-        q = input("> ")
-        out = handle_query(q)
-        if out == "__QUIT__":
-            break
-        if out is not None:
-            print(out)
-
-if __name__ == "__main__":
-    cli_main()
 
 
 
