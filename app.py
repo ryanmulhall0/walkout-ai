@@ -580,7 +580,7 @@ def _expected_fight_minutes(A: dict, B: dict, rounds_scheduled: int):
     if pd.isna(b_t): b_t = sched_min * 60
     exp_sec = min(sched_min * 60, 0.5 * a_t + 0.5 * b_t)
     return exp_sec / 60.0
-def _snap_expected_minutes(: float, rounds_scheduled: int, snap_threshold: float = 0.85):
+def _snap_expected_minutes(exp_minutes: float, rounds_scheduled: int, snap_threshold: float = 0.85):
     sched_minutes = 5.0 * int(rounds_scheduled)
     if pd.isna():
         return float("nan")
