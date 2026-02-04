@@ -347,6 +347,10 @@ fights2 = fights.copy()
 fights2["Fight_Date"] = _parse_date(fights2.get("Fight_Date"))
 fights2["Winner_Fighter_ID"] = _to_num(fights2.get("Winner_Fighter_ID"))
 today_dt = pd.Timestamp(date.today())
+# Ensure ID columns are numeric so upcoming fight matching works
+for col in ["Fight_ID", "Fighter_A_ID", "Fighter_B_ID", "Rounds_Scheduled"]:
+    if col in fights2.columns:
+        fights2[col] = _to_num(fights2.get(col))
 
 completed_fights = fights2[fights2["Winner_Fighter_ID"].notna()].copy()
 upcoming_fights = fights2[(fights2["Fight_Date"].notna()) & (fights2["Fight_Date"] >= today_dt)].copy()
