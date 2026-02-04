@@ -1773,8 +1773,7 @@ def predict(a_id: int, b_id: int, last_n_override=None):
                 new_components.append((label, a_val, b_val, w))
         components = new_components
 
-    score = 0.0
-    contribs = []
+    
     # Extra matchup components (style logic)
     # Wrestler vs poor TDD: boost wrestler edge
     if B_wrestler and pd.notna(A_tdd) and A_tdd < TDD_POOR_THRESHOLD:
