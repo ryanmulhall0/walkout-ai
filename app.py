@@ -580,13 +580,13 @@ def _expected_fight_minutes(A: dict, B: dict, rounds_scheduled: int):
     if pd.isna(b_t): b_t = sched_min * 60
     exp_sec = min(sched_min * 60, 0.5 * a_t + 0.5 * b_t)
     return exp_sec / 60.0
-def _snap_expected_minutes(exp_minutes: float, rounds_scheduled: int, snap_threshold: float = 0.85):
+def _snap_expected_minutes(: float, rounds_scheduled: int, snap_threshold: float = 0.85):
     sched_minutes = 5.0 * int(rounds_scheduled)
-    if pd.isna(exp_minutes):
+    if pd.isna():
         return float("nan")
-    if exp_minutes >= snap_threshold * sched_minutes:
+    if  >= snap_threshold * sched_minutes:
         return sched_minutes
-    return min(exp_minutes, sched_minutes)
+    return min(, sched_minutes)
 
 # ============================================================
 # Style tags + recent form/trajectory
@@ -781,7 +781,16 @@ def props_over_under_by_id(fid: int, line: float, stat: str, opp_name: str = Non
     A, _, _ = _get_blended_metrics(fid)
     B, _, _ = _get_blended_metrics(opp_id)
 
-    exp_minutes = _snap_expected_minutes(_expected_fight_minutes(A, B, rounds), rounds)
+    # Use the SAME fight-ending time that the prediction uses (finish time if finish, 15/25 if decision)
+    pred_text = predict(fid, opp_id, last_n_override=None)
+
+    m = re.search(r"Expected fight time:\s*([0-9]+(\.[0-9]+)?)", pred_text)
+    if m:
+        exp_minutes = float(m.group(1))
+    else:
+        # Fallback (should almost never happen)
+        exp_minutes = _snap_expected_minutes(_expected_fight_minutes(A, B, rounds), rounds)
+
 
     # Expected rates
     exp_sigpm = _expected_rate(A.get("sig_pm"), B.get("sig_abs_pm"))
