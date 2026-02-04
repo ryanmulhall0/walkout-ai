@@ -1818,11 +1818,11 @@ def predict(a_id: int, b_id: int, last_n_override=None):
     tier = _tier_from_strength(abs(score))
 
     sched_min = 5.0 * rounds_scheduled
-    exp_min = _snap_expected_minutes(_expected_fight_minutes(A, B, rounds_scheduled), rounds_scheduled)
-    display_time_min = exp_min
-    display_time_min = exp_min
+    raw_exp_min = _expected_fight_minutes(A, B, rounds_scheduled)
+    snap_exp_min = _snap_expected_minutes(raw_exp_min, rounds_scheduled)
+    display_time_min = snap_exp_min
     # ---------------- Final method pick ----------------
-    if exp_min >= 0.85 * sched_min:
+    if snap_exp_min >= 0.85 * sched_min:
 
         method = "Decision"
         rnd = "Decision"
@@ -1853,12 +1853,12 @@ def predict(a_id: int, b_id: int, last_n_override=None):
 
         if best_finish == "SUB":
             method = "Submission"
-            finish_min = exp_min * 0.88
+            finish_min = raw_exp_min * 0.88
             display_time_min = finish_min
 
         else:
             method = "KO/TKO"
-            finish_min = exp_min * 0.78
+            finish_min = raw_exp_min * 0.78
             display_time_min = finish_min
 
         r = int((max(0.01, min(display_time_min, sched_min)) - 0.01) // 5.0) + 1
