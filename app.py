@@ -1793,8 +1793,12 @@ def predict(a_id: int, b_id: int, last_n_override=None):
     if stance_edge_A != 0.0:
         contribs.append((abs(stance_edge_A), stance_edge_A, f"Stance history ({stance_note_A})", stance_edge_A, 0.0))
         score += stance_edge_A
+    if stance_edge_B != 0.0:
+    # If B has stance advantage, that should PUSH score toward B (negative for A)
+        contribs.append((abs(stance_edge_B), -stance_edge_B, f"Stance history (B view: {stance_note_B})", -stance_edge_B, 0.0))
+        score -= stance_edge_B
 
-   
+
 
     for label, a_val, b_val, w in components:
         edge = _norm_edge(a_val, b_val)
@@ -1814,7 +1818,7 @@ def predict(a_id: int, b_id: int, last_n_override=None):
     tier = _tier_from_strength(abs(score))
 
     sched_min = 5.0 * rounds_scheduled
-    exp_min = _expected_fight_minutes(A, B, rounds_scheduled)
+    exp_min = _snap_expected_minutes(_expected_fight_minutes(A, B, rounds_scheduled), rounds_scheduled)
     display_time_min = exp_min
     display_time_min = exp_min
     # ---------------- Final method pick ----------------
