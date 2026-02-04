@@ -1864,8 +1864,12 @@ def predict(a_id: int, b_id: int, last_n_override=None):
     # ---------------- Final output ----------------
     sched_min = 5.0 * rounds_scheduled
 
-    # expected time is already computed ONCE above
-    shown_time_min = sched_min if method == "Decision" else min(exp_min, sched_min)
+    # For finishes, show the estimated FINISH time (the same time used to choose Round X)
+    if method == "Decision":
+        shown_time_min = sched_min
+    else:
+        # display_time_min was set earlier for KO/SUB (finish_min)
+        shown_time_min = min(display_time_min, sched_min)
 
     out = "\n".join([
         f"PREDICTION — {fighter_name(a_id)} vs {fighter_name(b_id)}",
