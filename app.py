@@ -810,14 +810,16 @@ def props_over_under_by_id(fid: int, line: float, stat: str, opp_name: str = Non
         label = "minutes"
     else:
         return "Stat must be sig, td, or minutes."
-
+    
+    exp_display = int(round(exp)) if pd.notna(exp) else exp
+   
     diff = exp - float(line)
     pick = "Over" if diff > 0 else "Under" if diff < 0 else "Push"
 
     return (
         f"PROP — {fighter_name(fid)} vs {fighter_name(opp_id)}\n"
         f"{pick} {line} {label}\n"
-        f"Model expected: {exp:.2f} {label} (expected fight time {exp_minutes:.2f} min)"
+        f"Model expected: {exp_display} {label} (expected fight time {exp_minutes:.2f} min)"
     )
 
 
