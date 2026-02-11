@@ -1753,7 +1753,7 @@ def predict(a_id: int, b_id: int, last_n_override=None):
     elo_edge = rating_diff / 800.0
     elo_edge = max(-0.75, min(0.75, elo_edge))
 
-    score += elo_edge * 0.8
+    score += elo_edge * 2.2
 
     contribs = []
 
