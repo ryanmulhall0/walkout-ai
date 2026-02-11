@@ -354,6 +354,74 @@ for col in ["Fight_ID", "Fighter_A_ID", "Fighter_B_ID", "Rounds_Scheduled"]:
 
 completed_fights = fights2[fights2["Winner_Fighter_ID"].notna()].copy()
 upcoming_fights = fights2[(fights2["Fight_Date"].notna()) & (fights2["Fight_Date"] >= today_dt)].copy()
+# ============================================================
+# ELO Rating System (Deterministic, Medium Volatility)
+# ============================================================
+
+ELO_RATINGS = {}
+
+def _build_elo_ratings():
+    global ELO_RATINGS
+
+    BASE_RATING = 1500
+    BASE_K = 28  # medium volatility as requested
+
+    # Initialize every fighter at 1500
+    for fid in fighters["Fighter_ID"]:
+        ELO_RATINGS[int(fid)] = BASE_RATING
+
+    # Sort fights chronologically
+    fights_sorted = completed_fights.sort_values("Fight_Date", ascending=True)
+
+    for _, row in fights_sorted.iterrows():
+        a = int(row["Fighter_A_ID"])
+        b = int(row["Fighter_B_ID"])
+        winner = int(row["Winner_Fighter_ID"])
+
+        Ra = ELO_RATINGS.get(a, BASE_RATING)
+        Rb = ELO_RATINGS.get(b, BASE_RATING)
+
+        # Expected probabilities
+        Ea = 1 / (1 + 10 ** ((Rb - Ra) / 400))
+        Eb = 1 / (1 + 10 ** ((Ra - Rb) / 400))
+
+        # Score outcomes
+        Sa = 1 if winner == a else 0
+        Sb = 1 if winner == b else 0
+
+        # Experience dampening
+        fights_a = len(completed_fights[
+            (completed_fights["Fighter_A_ID"] == a) |
+            (completed_fights["Fighter_B_ID"] == a)
+        ])
+        fights_b = len(completed_fights[
+            (completed_fights["Fighter_A_ID"] == b) |
+            (completed_fights["Fighter_B_ID"] == b)
+        ])
+
+        Ka = BASE_K * (1 / (1 + fights_a / 12))
+        Kb = BASE_K * (1 / (1 + fights_b / 12))
+
+        # DWCS scaling (if you track it in Weight_Class or Event name adjust here if needed)
+        # For now, simple UFC-only scaling
+        if "DWCS" in str(row.get("Weight_Class", "")).upper():
+            Ka *= 0.6
+            Kb *= 0.6
+
+        # Method scaling
+        method = str(row.get("Method", "")).upper()
+        if "KO" in method or "TKO" in method:
+            Ka *= 1.12
+            Kb *= 1.12
+        elif "SUB" in method:
+            Ka *= 1.08
+            Kb *= 1.08
+
+        # Update ratings
+        ELO_RATINGS[a] = Ra + Ka * (Sa - Ea)
+        ELO_RATINGS[b] = Rb + Kb * (Sb - Eb)
+
+_build_elo_ratings()
 
 # ============================================================
 # Clean stats + join to completed fights
@@ -1675,6 +1743,18 @@ def predict(a_id: int, b_id: int, last_n_override=None):
     A, _ = _get_mode_metrics(a_id, last_n_override)
     B, _ = _get_mode_metrics(b_id, last_n_override)
     score = 0.0
+    # ---------------- ELO influence ----------------
+    Ra = ELO_RATINGS.get(a_id, 1500)
+    Rb = ELO_RATINGS.get(b_id, 1500)
+
+    rating_diff = Ra - Rb
+
+    # Normalize and cap so it never dominates
+    elo_edge = rating_diff / 800.0
+    elo_edge = max(-0.75, min(0.75, elo_edge))
+
+    score += elo_edge * 0.8
+
     contribs = []
 
     # --- Style/physics/stance modifiers (deterministic) ---
