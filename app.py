@@ -1912,7 +1912,12 @@ def predict(a_id: int, b_id: int, last_n_override=None):
         score += size_edge
         contribs.append((abs(size_edge), size_edge, "Weight class edge", size_edge, 0.0))
 
-    winner_is_A = score > 0
+    Ra = ELO_RATINGS.get(a_id, 1500.0)
+    Rb = ELO_RATINGS.get(b_id, 1500.0)
+    rating_bias = (Ra - Rb) / 250.0  # stronger bias
+
+    winner_is_A = (score + rating_bias) > 0
+
     winner = fighter_name(a_id) if winner_is_A else fighter_name(b_id)
     tier = _tier_from_strength(abs(score))
 
