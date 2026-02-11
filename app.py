@@ -1892,11 +1892,20 @@ def predict(a_id: int, b_id: int, last_n_override=None):
 
 
     for label, a_val, b_val, w in components:
-        edge = _norm_edge(a_val, b_val)
-        if pd.isna(edge):
-            continue
-        c = w * edge
-        score += c
+    edge = _norm_edge(a_val, b_val)
+    if pd.isna(edge):
+        continue
+
+    c = w * edge
+
+    # CAP STAT CONTRIBUTION
+    if c > 0.45:
+        c = 0.45
+    if c < -0.45:
+        c = -0.45
+
+    score += c
+
         contribs.append((abs(c), c, label, a_val, b_val))
 
     # Apply size edge last (deterministic, never flips)
