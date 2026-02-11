@@ -1890,7 +1890,6 @@ def predict(a_id: int, b_id: int, last_n_override=None):
         score -= stance_edge_B
 
 
-
     for label, a_val, b_val, w in components:
     edge = _norm_edge(a_val, b_val)
     if pd.isna(edge):
