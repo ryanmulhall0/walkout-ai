@@ -1707,7 +1707,11 @@ def _weight_class_history_edge(a_id: int, b_id: int, A_rows: pd.DataFrame, B_row
         note += f"; {note_fam}"
     return edge, note
 
+import math
 
+def _score_to_probability(score):
+    k = 0.9   # controls how sharp the confidence curve is
+    return 1 / (1 + math.exp(-k * score))
 def predict(a_id: int, b_id: int, last_n_override=None):
     key = _cache_key("predict_v2", *sorted([a_id, b_id]), last_n_override, RECENT_N_DEFAULT, RECENT_WEIGHT_DEFAULT)
 
@@ -1916,10 +1920,16 @@ def predict(a_id: int, b_id: int, last_n_override=None):
     Rb = ELO_RATINGS.get(b_id, 1500.0)
     rating_bias = (Ra - Rb) / 250.0  # stronger bias
 
-    winner_is_A = (score + rating_bias) > 0
+    final_score = score + rating_bias
 
+    prob_A = _score_to_probability(final_score)
+    prob_B = 1 - prob_A
+
+    winner_is_A = final_score > 0
     winner = fighter_name(a_id) if winner_is_A else fighter_name(b_id)
-    tier = _tier_from_strength(abs(score))
+
+    winner_prob = prob_A if winner_is_A else prob_B
+    winner_prob_pct = round(winner_prob * 100, 1)
 
     sched_min = 5.0 * rounds_scheduled
     raw_exp_min = _expected_fight_minutes(A, B, rounds_scheduled)
@@ -1981,7 +1991,7 @@ def predict(a_id: int, b_id: int, last_n_override=None):
 
     out = "\n".join([
         f"PREDICTION — {fighter_name(a_id)} vs {fighter_name(b_id)}",
-        f"Confidence: {tier}",
+        f"Confidence: {winner_prob_pct}%",
         f"Pick: {winner}",
         f"Method pick: {method} ({rnd})",
         "",
