@@ -482,7 +482,7 @@ const answerText = (data && data.answer) ? data.answer : "";
 
 // Update weekly usage if provided
 if (typeof data.used === "number" && typeof data.limit === "number") {
-  usage.textContent = `${data.used}/${data.limit}`;
+  usageEl.textContent = `${data.used}/${data.limit}`;
 }
 
 if (data && data.limit_reached) {
