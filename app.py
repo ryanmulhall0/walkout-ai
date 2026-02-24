@@ -1709,6 +1709,49 @@ def _weight_class_history_edge(a_id: int, b_id: int, A_rows: pd.DataFrame, B_row
 
 import math
 
+def _recent_performance_adjustment(fid: int, rows: pd.DataFrame):
+    if rows is None or len(rows) == 0:
+        return 0.0
+
+    # Last fight only
+    last = rows.iloc[-1]
+
+    result = str(last.get("Result", "")).upper()
+    opp_id = pd.to_numeric(last.get("Opponent_ID"), errors="coerce")
+
+    if pd.isna(opp_id):
+        return 0.0
+
+    # Opponent strength via ELO
+    opp_elo = ELO_RATINGS.get(int(opp_id), 1500)
+    self_elo = ELO_RATINGS.get(fid, 1500)
+
+    elo_gap = opp_elo - self_elo
+
+    # Performance dominance proxy
+    sig_for = pd.to_numeric(last.get("Sig_Strikes_Landed", 0), errors="coerce")
+    sig_against = pd.to_numeric(last.get("Opp_Sig_Strikes_Landed", 0), errors="coerce")
+
+    dominance = 0.0
+    if pd.notna(sig_for) and pd.notna(sig_against):
+        diff = sig_for - sig_against
+        dominance = diff / 50.0  # normalize
+
+    base_adjust = 0.0
+
+    if result == "W":
+        base_adjust = 0.20 + (0.15 * dominance)
+    elif result == "L":
+        base_adjust = -0.20 + (0.15 * dominance)
+
+    # Adjust based on opponent strength
+    # Losing to much stronger opponent reduces penalty
+    # Losing to weaker opponent increases penalty
+    strength_factor = -elo_gap / 400.0
+
+    final_adjust = base_adjust + strength_factor * 0.25
+
+    return max(-0.40, min(0.40, final_adjust))
 def _score_to_probability(score):
     k = 0.9   # controls how sharp the confidence curve is
     return 1 / (1 + math.exp(-k * score))
@@ -1775,6 +1818,13 @@ def predict(a_id: int, b_id: int, last_n_override=None):
     else:
         A_rows = _get_completed_rows_for_fighter(a_id)
         B_rows = _get_completed_rows_for_fighter(b_id)
+
+    # --- Contextual recent performance ---
+    recent_A = _recent_performance_adjustment(a_id, A_rows)
+    recent_B = _recent_performance_adjustment(b_id, B_rows)
+
+    score += recent_A
+    score -= recent_B
     # --- Additional safe modifiers (small, capped) ---
     # Upcoming weight class (if available from upcoming row)
     upcoming_wc = ""
