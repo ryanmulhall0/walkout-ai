@@ -1418,6 +1418,65 @@ def _size_edge_from_wc(a_id: int, b_id: int):
         return 0.0, "Unknown weight classes"
     diff = wca - wcb
     return float(diff), f"{_norm_wc(_wc_label(a_id, fighters))} vs {_norm_wc(_wc_label(b_id, fighters))} (diff {diff})"
+def _head_to_head_edge(a_id: int, b_id: int):
+    """
+    Dynamic head-to-head modifier.
+    Rewards previous winner, decays over time,
+    and weakens if loser has fought since.
+    """
+
+    cf = completed_fights.copy()
+
+    h2h = cf[
+        ((cf["Fighter_A_ID"] == a_id) & (cf["Fighter_B_ID"] == b_id)) |
+        ((cf["Fighter_A_ID"] == b_id) & (cf["Fighter_B_ID"] == a_id))
+    ]
+
+    if len(h2h) == 0:
+        return 0.0, "no prior meeting"
+
+    h2h = h2h.sort_values("Fight_Date", ascending=False)
+    last = h2h.iloc[0]
+
+    winner = int(last["Winner_Fighter_ID"])
+    loser = b_id if winner == a_id else a_id
+
+    fight_date = pd.to_datetime(last["Fight_Date"], errors="coerce")
+    if pd.isna(fight_date):
+        time_decay = 1.0
+    else:
+        days_ago = (pd.Timestamp.today() - fight_date).days
+        time_decay = max(0.2, 1 - (days_ago / 900))
+
+    method = str(last.get("Method", "")).upper()
+    dominance = 1.0
+    if "KO" in method or "TKO" in method:
+        dominance = 1.25
+    elif "SUB" in method:
+        dominance = 1.15
+
+    base_edge = 0.45 * time_decay * dominance
+
+    # Count fights since for loser
+    all_loser = cf[
+        (cf["Fighter_A_ID"] == loser) |
+        (cf["Fighter_B_ID"] == loser)
+    ].sort_values("Fight_Date", ascending=False)
+
+    fights_since = 0
+    for _, row in all_loser.iterrows():
+        if int(row["Fight_ID"]) == int(last["Fight_ID"]):
+            break
+        fights_since += 1
+
+    improvement_factor = max(0.0, 1 - 0.25 * fights_since)
+
+    final_edge = base_edge * improvement_factor
+
+    if winner == a_id:
+        return final_edge, "A won previous meeting"
+    else:
+        return -final_edge, "B won previous meeting"
 # ---------------------------
 # Safe additional modifiers (inactivity, opponent quality, mutual opponents, weight class history)
 # ---------------------------
@@ -1791,6 +1850,11 @@ def predict(a_id: int, b_id: int, last_n_override=None):
     A, _ = _get_mode_metrics(a_id, last_n_override)
     B, _ = _get_mode_metrics(b_id, last_n_override)
     score = 0.0
+    # Head-to-head dynamic modifier
+    h2h_edge, h2h_note = _head_to_head_edge(a_id, b_id)
+    if h2h_edge != 0:
+        score += h2h_edge
+        contribs.append((abs(h2h_edge), h2h_edge, f"Head-to-head ({h2h_note})", 0.0, 0.0))
     # ---------------- ELO influence ----------------
     Ra = ELO_RATINGS.get(a_id, 1500)
     Rb = ELO_RATINGS.get(b_id, 1500)
