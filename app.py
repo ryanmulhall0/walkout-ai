@@ -1740,17 +1740,17 @@ def _recent_performance_adjustment(fid: int, rows: pd.DataFrame):
     base_adjust = 0.0
 
     if result == "W":
-        base_adjust = 0.20 + (0.15 * dominance)
+    base_adjust = 0.22 + (0.18 * dominance)
     elif result == "L":
-        base_adjust = -0.20 + (0.15 * dominance)
+    base_adjust = -0.12 + (0.15 * dominance)
 
     # Adjust based on opponent strength
     # Losing to much stronger opponent reduces penalty
     # Losing to weaker opponent increases penalty
     strength_factor = -elo_gap / 400.0
 
-    final_adjust = base_adjust + strength_factor * 0.25
-
+    final_adjust = base_adjust + strength_factor * 0.40
+    
     return max(-0.40, min(0.40, final_adjust))
 def _score_to_probability(score):
     k = 0.9   # controls how sharp the confidence curve is
@@ -1968,19 +1968,11 @@ def predict(a_id: int, b_id: int, last_n_override=None):
 
     Ra = ELO_RATINGS.get(a_id, 1500.0)
     Rb = ELO_RATINGS.get(b_id, 1500.0)
-    rating_bias = (Ra - Rb) / 250.0  # stronger bias
-
-    final_score = score + rating_bias
+    final_score = score
 
     prob_A = _score_to_probability(final_score)
     prob_B = 1 - prob_A
     
-    print("------ DEBUG ------")
-    print("Final score:", final_score)
-    print("Recent A:", recent_A)
-    print("Recent B:", recent_B)
-    print("ELO diff:", Ra - Rb)
-    print("-------------------")
 
     winner_is_A = final_score > 0
     winner = fighter_name(a_id) if winner_is_A else fighter_name(b_id)
