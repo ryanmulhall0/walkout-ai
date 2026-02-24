@@ -1974,6 +1974,13 @@ def predict(a_id: int, b_id: int, last_n_override=None):
 
     prob_A = _score_to_probability(final_score)
     prob_B = 1 - prob_A
+    
+    print("------ DEBUG ------")
+    print("Final score:", final_score)
+    print("Recent A:", recent_A)
+    print("Recent B:", recent_B)
+    print("ELO diff:", Ra - Rb)
+    print("-------------------")
 
     winner_is_A = final_score > 0
     winner = fighter_name(a_id) if winner_is_A else fighter_name(b_id)
