@@ -1478,7 +1478,7 @@ def _head_to_head_edge(a_id: int, b_id: int):
                     else:
                         dominance_multiplier = 1.0
 
-    base_edge = 0.50 * dominance_multiplier
+    base_edge = 0.55 * dominance_multiplier
 
     # ----- Check if loser fought since -----
     all_loser = cf[
@@ -1491,7 +1491,12 @@ def _head_to_head_edge(a_id: int, b_id: int):
         if int(row["Fight_ID"]) == fight_id:
             break
         fights_since += 1
-
+    # Extra penalty for fresh finishes
+    if fights_since == 0:
+        if "KO" in method or "TKO" in method:
+            base_edge *= 1.25
+        elif "SUB" in method:
+            base_edge *= 1.15
     # Reduce penalty if loser has improved
     reduction_factor = max(0.2, 1 - 0.30 * fights_since)
 
