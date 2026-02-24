@@ -1420,9 +1420,11 @@ def _size_edge_from_wc(a_id: int, b_id: int):
     return float(diff), f"{_norm_wc(_wc_label(a_id, fighters))} vs {_norm_wc(_wc_label(b_id, fighters))} (diff {diff})"
 def _head_to_head_edge(a_id: int, b_id: int):
     """
-    Dynamic head-to-head modifier.
-    Rewards previous winner, decays over time,
-    and weakens if loser has fought since.
+    Smart head-to-head adjustment:
+    - Strong penalty if finished
+    - Strong penalty if dominant decision
+    - Weak penalty if close decision
+    - Penalty reduced if loser fought & improved
     """
 
     cf = completed_fights.copy()
@@ -1441,23 +1443,44 @@ def _head_to_head_edge(a_id: int, b_id: int):
     winner = int(last["Winner_Fighter_ID"])
     loser = b_id if winner == a_id else a_id
 
-    fight_date = pd.to_datetime(last["Fight_Date"], errors="coerce")
-    if pd.isna(fight_date):
-        time_decay = 1.0
-    else:
-        days_ago = (pd.Timestamp.today() - fight_date).days
-        time_decay = max(0.2, 1 - (days_ago / 900))
+    fight_id = int(last["Fight_ID"])
 
+    # ----- Determine dominance -----
     method = str(last.get("Method", "")).upper()
-    dominance = 1.0
+
+    dominance_multiplier = 1.0
+
     if "KO" in method or "TKO" in method:
-        dominance = 1.25
+        dominance_multiplier = 1.6
     elif "SUB" in method:
-        dominance = 1.15
+        dominance_multiplier = 1.4
+    else:
+        # Decision — check sig strike differential
+        stats_rows = stats_completed[
+            stats_completed["Fight_ID"] == fight_id
+        ]
 
-    base_edge = 0.45 * time_decay * dominance
+        if len(stats_rows) == 2:
+            row_w = stats_rows[stats_rows["Fighter_ID"] == winner]
+            row_l = stats_rows[stats_rows["Fighter_ID"] == loser]
 
-    # Count fights since for loser
+            if len(row_w) == 1 and len(row_l) == 1:
+                sig_w = row_w.iloc[0].get("Significant_Strikes_Landed", 0)
+                sig_l = row_l.iloc[0].get("Significant_Strikes_Landed", 0)
+
+                if pd.notna(sig_w) and pd.notna(sig_l):
+                    diff = abs(sig_w - sig_l)
+
+                    if diff >= 40:
+                        dominance_multiplier = 1.4   # dominant decision
+                    elif diff <= 10:
+                        dominance_multiplier = 0.5   # close fight
+                    else:
+                        dominance_multiplier = 1.0
+
+    base_edge = 0.50 * dominance_multiplier
+
+    # ----- Check if loser fought since -----
     all_loser = cf[
         (cf["Fighter_A_ID"] == loser) |
         (cf["Fighter_B_ID"] == loser)
@@ -1465,13 +1488,14 @@ def _head_to_head_edge(a_id: int, b_id: int):
 
     fights_since = 0
     for _, row in all_loser.iterrows():
-        if int(row["Fight_ID"]) == int(last["Fight_ID"]):
+        if int(row["Fight_ID"]) == fight_id:
             break
         fights_since += 1
 
-    improvement_factor = max(0.0, 1 - 0.25 * fights_since)
+    # Reduce penalty if loser has improved
+    reduction_factor = max(0.2, 1 - 0.30 * fights_since)
 
-    final_edge = base_edge * improvement_factor
+    final_edge = base_edge * reduction_factor
 
     if winner == a_id:
         return final_edge, "A won previous meeting"
