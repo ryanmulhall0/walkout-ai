@@ -1850,11 +1850,7 @@ def predict(a_id: int, b_id: int, last_n_override=None):
     A, _ = _get_mode_metrics(a_id, last_n_override)
     B, _ = _get_mode_metrics(b_id, last_n_override)
     score = 0.0
-    # Head-to-head dynamic modifier
-    h2h_edge, h2h_note = _head_to_head_edge(a_id, b_id)
-    if h2h_edge != 0:
-        score += h2h_edge
-        contribs.append((abs(h2h_edge), h2h_edge, f"Head-to-head ({h2h_note})", 0.0, 0.0))
+    
     # ---------------- ELO influence ----------------
     Ra = ELO_RATINGS.get(a_id, 1500)
     Rb = ELO_RATINGS.get(b_id, 1500)
@@ -1868,7 +1864,11 @@ def predict(a_id: int, b_id: int, last_n_override=None):
     score += elo_edge * 2.2
 
     contribs = []
-
+    # Head-to-head dynamic modifier
+    h2h_edge, h2h_note = _head_to_head_edge(a_id, b_id)
+    if h2h_edge != 0:
+        score += h2h_edge
+        contribs.append((abs(h2h_edge), h2h_edge, f"Head-to-head ({h2h_note})", 0.0, 0.0))
     # --- Style/physics/stance modifiers (deterministic) ---
     # Determine "wrestler" vs "striker"
     A_wrestler = _is_high_level_wrestler(A)
