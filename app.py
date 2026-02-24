@@ -1737,12 +1737,13 @@ def _recent_performance_adjustment(fid: int, rows: pd.DataFrame):
         diff = sig_for - sig_against
         dominance = diff / 50.0  # normalize
 
-    base_adjust = 0.0
 
     if result == "W":
-    base_adjust = 0.22 + (0.18 * dominance)
+        base_adjust = 0.22 + (0.18 * dominance)
     elif result == "L":
-    base_adjust = -0.12 + (0.15 * dominance)
+         base_adjust = -0.12 + (0.15 * dominance)
+    else:
+        base_adjust = 0.0
 
     # Adjust based on opponent strength
     # Losing to much stronger opponent reduces penalty
