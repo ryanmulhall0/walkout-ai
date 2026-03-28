@@ -471,6 +471,57 @@ def premium_status():
     premium = bool(row[0]) if row else False
     session["user"]["premium"] = premium
     return jsonify({"logged_in": True, "premium": premium}), 200
+    @app.post("/stripe/webhook")
+def stripe_webhook():
+    payload = request.data
+    sig_header = request.headers.get("Stripe-Signature")
+    webhook_secret = os.environ.get("STRIPE_WEBHOOK_SECRET")
+
+    if not webhook_secret:
+        return "Webhook secret not set", 500
+
+    try:
+        event = stripe.Webhook.construct_event(
+            payload=payload,
+            sig_header=sig_header,
+            secret=webhook_secret,
+        )
+    except Exception as e:
+        return f"Webhook error: {str(e)}", 400
+
+    if event["type"] == "checkout.session.completed":
+        session_obj = event["data"]["object"]
+
+        email = None
+
+        metadata = session_obj["metadata"] if "metadata" in session_obj else {}
+        if metadata:
+            email = metadata.get("email")
+
+        if not email and "customer_details" in session_obj and session_obj["customer_details"]:
+            customer_details = session_obj["customer_details"]
+            if "email" in customer_details:
+                email = customer_details["email"]
+
+        if not email and "customer_email" in session_obj:
+            email = session_obj["customer_email"]
+
+        if email:
+            email = email.strip().lower()
+            db_url = os.environ.get("DATABASE_URL")
+            conn = psycopg2.connect(db_url)
+            cur = conn.cursor()
+            cur.execute("""
+                INSERT INTO users (email, premium_active, weekly_count, week_start)
+                VALUES (%s, TRUE, 0, CURRENT_DATE)
+                ON CONFLICT (email)
+                DO UPDATE SET premium_active = TRUE;
+            """, (email,))
+            conn.commit()
+            cur.close()
+            conn.close()
+
+    return "ok", 200
 if __name__ == "__main__":
     flask_app.run(host="127.0.0.1", port=5000, debug=False)
 
