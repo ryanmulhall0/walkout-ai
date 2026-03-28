@@ -472,7 +472,7 @@ def premium_status():
     session["user"]["premium"] = premium
     return jsonify({"logged_in": True, "premium": premium}), 200
 @app.post("/stripe/webhook")
- def stripe_webhook():
+def stripe_webhook():
     payload = request.data
     sig_header = request.headers.get("Stripe-Signature")
     webhook_secret = os.environ.get("STRIPE_WEBHOOK_SECRET")
