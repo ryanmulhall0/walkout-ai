@@ -463,7 +463,12 @@ def premium_status():
     db_url = os.environ.get("DATABASE_URL")
     conn = psycopg2.connect(db_url)
     cur = conn.cursor()
-    cur.execute("SELECT premium_active FROM users WHERE email=%s;", (email,))
+    cur.execute("""
+    INSERT INTO users (email, premium_active, weekly_count, week_start)
+    VALUES (%s, TRUE, 0, CURRENT_DATE)
+    ON CONFLICT (email)
+    DO UPDATE SET premium_active = TRUE;
+    """, (email,))
     row = cur.fetchone()
     cur.close()
     conn.close()
