@@ -493,14 +493,13 @@ def stripe_webhook():
         session_obj = event["data"]["object"]
 
         # Try multiple places Stripe may store the email
-        email = None
-        if isinstance(session_obj.get("customer_details"), dict):
-            email = session_obj["customer_details"].get("email")
+        email = session_obj.get("metadata", {}).get("email")
+
+        if not email:
+            if isinstance(session_obj.get("customer_details"), dict):
+                email = session_obj["customer_details"].get("email")
         if not email:
             email = session_obj.get("customer_email")
-        if not email:
-            email = session_obj.get("metadata", {}).get("email")
-
         if email:
             email = email.strip().lower()
             db_url = os.environ.get("DATABASE_URL")
