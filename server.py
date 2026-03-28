@@ -463,12 +463,39 @@ def premium_status():
     db_url = os.environ.get("DATABASE_URL")
     conn = psycopg2.connect(db_url)
     cur = conn.cursor()
+
     cur.execute("SELECT premium_active FROM users WHERE email=%s;", (email,))
     row = cur.fetchone()
+    premium = bool(row[0]) if row else False
+
+    if not premium:
+        try:
+            customers = stripe.Customer.list(email=email, limit=1)
+            if customers.data:
+                cust_id = customers.data[0].id
+                subs = stripe.Subscription.list(customer=cust_id, limit=10)
+
+                has_active = False
+                for s in subs.data:
+                    if s.status in ("active", "trialing", "past_due"):
+                        has_active = True
+                        break
+
+                if has_active:
+                    cur.execute("""
+                        INSERT INTO users (email, premium_active, weekly_count, week_start)
+                        VALUES (%s, TRUE, 0, CURRENT_DATE)
+                        ON CONFLICT (email)
+                        DO UPDATE SET premium_active = TRUE;
+                    """, (email,))
+                    conn.commit()
+                    premium = True
+        except Exception as e:
+            print("Stripe fallback error:", e)
+
     cur.close()
     conn.close()
 
-    premium = bool(row[0]) if row else False
     session["user"]["premium"] = premium
     return jsonify({"logged_in": True, "premium": premium}), 200
 @app.post("/stripe/webhook")
