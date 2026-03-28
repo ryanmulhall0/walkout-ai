@@ -285,6 +285,7 @@ def create_checkout_session():
         checkout = stripe.checkout.Session.create(
             mode="subscription",
             customer_email=email,
+            metadata={"email": email},  # ✅ ADD THIS LINE
             line_items=[{"price": STRIPE_PRICE_ID, "quantity": 1}],
             success_url=f"{base}/?paid=1",
             cancel_url=f"{base}/?canceled=1",
@@ -493,13 +494,19 @@ def stripe_webhook():
         session_obj = event["data"]["object"]
 
         # Try multiple places Stripe may store the email
-        email = session_obj.get("metadata", {}).get("email")
+        email = None
 
-        if not email:
-            if isinstance(session_obj.get("customer_details"), dict):
-                email = session_obj["customer_details"].get("email")
-        if not email:
-            email = session_obj.get("customer_email")
+        metadata = session_obj["metadata"] if "metadata" in session_obj else {}
+        if metadata:
+            email = metadata.get("email")
+
+        if not email and "customer_details" in session_obj and session_obj["customer_details"]:
+            customer_details = session_obj["customer_details"]
+            if "email" in customer_details:
+                email = customer_details["email"]
+
+        if not email and "customer_email" in session_obj:
+            email = session_obj["customer_email"]
         if email:
             email = email.strip().lower()
             db_url = os.environ.get("DATABASE_URL")
