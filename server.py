@@ -521,9 +521,9 @@ def stripe_webhook():
 
         email = None
 
-        metadata = session_obj["metadata"] if "metadata" in session_obj else {}
-        if metadata:
-            email = metadata.get("email")
+        metadata = session_obj["metadata"] if "metadata" in session_obj else None
+        if metadata and "email" in metadata:
+            email = metadata["email"]
 
         if not email and "customer_details" in session_obj and session_obj["customer_details"]:
             customer_details = session_obj["customer_details"]
